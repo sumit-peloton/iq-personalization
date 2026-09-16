@@ -55,7 +55,8 @@ body {
   gap: 30px;
   width: 240px;
   overflow-y: auto;
-  /* padding lets the last item scroll fully clear the bottom fade zone */
+  /* padding keeps first/last items clear of the fade zones */
+  padding-top: 40px;
   padding-bottom: 48px;
   /* hide the scrollbar visually but keep it functional */
   scrollbar-width: none;
