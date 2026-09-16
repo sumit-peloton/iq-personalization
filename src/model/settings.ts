@@ -24,8 +24,8 @@ export const DEFAULT_SETTINGS: GlowSettings = {
   iconColor: "#FFFFFF",
   glowEnabled: true,
   glowRadius: 1.6,
-  glowIntensity: 0.6,
-  glowFalloff: 0.7,
+  glowIntensity: 0.35,
+  glowFalloff: 0.4,
   glowColor: "#4DA3FF",
   animation: DEFAULT_ANIMATION,
 };
