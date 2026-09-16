@@ -1,0 +1,23 @@
+{
+  "name": "iq-glow-tuner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Web tool to tune a glow on the iQ icon and export Lottie JSON for Android.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

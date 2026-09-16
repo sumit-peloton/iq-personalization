@@ -1,0 +1,431 @@
+:root {
+  --white: #ffffff;
+  --dim: rgba(255, 255, 255, 0.45);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #000;
+  color: var(--white);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Icon centered on black; controls float against the right edge. */
+.app {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-svg {
+  width: min(46vw, 60vh);
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+/* ---- Controls: minimal, right side ---- */
+.controls {
+  position: absolute;
+  top: 50%;
+  right: 56px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  width: 240px;
+}
+
+/* Glow's sub-controls, inset under the GLOW toggle to show hierarchy. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+  margin-left: 13px;
+  padding-left: 20px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  transition: opacity 0.2s ease;
+}
+
+.group-disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* ---- Checkbox toggle ---- */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  border: 1px solid var(--white);
+  background: transparent;
+  cursor: pointer;
+}
+
+.toggle input:checked {
+  background: var(--white);
+}
+
+/* ---- Slider: a plain white line ---- */
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.slider-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--dim);
+}
+
+.slider-value {
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2px;
+  height: 14px;
+  background: var(--white);
+  border: none;
+  border-radius: 0;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 2px;
+  height: 14px;
+  background: var(--white);
+  border: none;
+  border-radius: 0;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* ---- Select (animation dropdown) ---- */
+.select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.select-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  background: transparent;
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--white) 50%),
+    linear-gradient(135deg, var(--white) 50%, transparent 50%);
+  background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.select-field select option {
+  background: #000;
+  color: var(--white);
+}
+
+/* ---- Curve editor (draggable cubic-bezier graph) ---- */
+.curve-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.curve-editor {
+  width: 100%;
+  aspect-ratio: 200 / 150;
+  overflow: visible;
+  touch-action: none;
+}
+
+.curve-frame {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+.curve-diag {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-dasharray: 2 3;
+}
+
+.curve-stem {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1;
+}
+
+.curve-path {
+  fill: none;
+  stroke: var(--white);
+  stroke-width: 1.75;
+}
+
+.curve-anchor {
+  fill: rgba(255, 255, 255, 0.5);
+}
+
+.curve-handle {
+  fill: #000;
+  stroke: var(--white);
+  stroke-width: 1.75;
+  cursor: grab;
+}
+
+.curve-handle:active {
+  cursor: grabbing;
+}
+
+/* ---- Color field ---- */
+.color-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.color-field input[type="color"] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* ---- Bottom-left stack: presets above the export/reset actions ---- */
+.bottom-left {
+  position: fixed;
+  left: 48px;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 240px;
+}
+
+/* ---- Presets ---- */
+.presets {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.presets-head {
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.preset-save {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.preset-save input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--white);
+  font-size: 12px;
+  padding: 4px 0;
+  outline: none;
+}
+
+.preset-save input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+}
+
+.preset-save .btn {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+}
+
+.preset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preset-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preset-name {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--white);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 5px 0;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s ease;
+}
+
+.preset-name:hover {
+  opacity: 1;
+}
+
+.preset-del {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.preset-del:hover {
+  color: var(--white);
+}
+
+/* ---- Actions (export / reset, sits under the presets) ---- */
+.actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.btn {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 9px 0;
+  background: transparent;
+  color: var(--white);
+  border: 1px solid var(--white);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn:hover {
+  background: var(--white);
+  color: #000;
+}
+
+.btn-ghost {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--dim);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+}
+
+/* ---- Slow-mo toggle (top-left, preview only) ---- */
+.slowmo {
+  position: fixed;
+  top: 40px;
+  left: 48px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.slowmo:hover {
+  border-color: var(--white);
+}
+
+.slowmo-on {
+  background: var(--white);
+  color: #000;
+  border-color: var(--white);
+}
