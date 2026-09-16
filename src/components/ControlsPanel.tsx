@@ -169,6 +169,7 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
               step={ROTATE_HOLD_RANGE.step}
               onChange={(rotateHold) => patchAnim({ rotateHold })}
               format={(v) => v === 0 ? "None" : `${Math.round(v * 100)}%`}
+              // 100% = original pre-slider hold (30% of cycle)
             />
           </>)}
           {!isRotate && <>

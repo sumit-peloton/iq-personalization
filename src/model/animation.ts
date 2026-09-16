@@ -124,9 +124,14 @@ function rotateSpring(u: number, anim: AnimationSettings): number {
  * but is exactly 1 at the end of the move phase and throughout the hold, so
  * the loop boundary is seamless.
  */
+// rotateHold is stored 0→1; multiply by this to get the actual cycle fraction.
+// 1 = the original pre-slider hold (30% of cycle, i.e. move takes 70%).
+const ROTATE_HOLD_MAX_FRAC = 0.3;
+
 export function rotateProgress(u: number, anim: AnimationSettings): number {
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-  const moveFrac = Math.max(1 - (anim.rotateHold ?? 0), 0.05); // at least 5% for move
+  const holdFrac = (anim.rotateHold ?? 0) * ROTATE_HOLD_MAX_FRAC;
+  const moveFrac = Math.max(1 - holdFrac, 0.05); // at least 5% for move
   if (u >= moveFrac) return 1; // hold at destination
   const t = u / moveFrac; // normalised 0→1 within the move window
   return ease(t) + rotateSpring(t, anim);
@@ -140,7 +145,8 @@ export function rotateProgress(u: number, anim: AnimationSettings): number {
  */
 export function ringRotateScale(u: number, anim: AnimationSettings): number {
   if (anim.ringShrink <= 0) return 1;
-  const moveFrac = Math.max(1 - (anim.rotateHold ?? 0), 0.05);
+  const holdFrac = (anim.rotateHold ?? 0) * ROTATE_HOLD_MAX_FRAC;
+  const moveFrac = Math.max(1 - holdFrac, 0.05);
   const t = Math.min(u / moveFrac, 1); // clamped: hold phase keeps t=1 → scale=1
   return 1 - anim.ringShrink * Math.sin(Math.PI * t);
 }
