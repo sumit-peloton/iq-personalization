@@ -12,6 +12,8 @@ export type GlowSettings = {
   glowRadius: number;
   /** Brightness of the glow: center alpha of the halo, 0..1. */
   glowIntensity: number;
+  /** How sharply the glow falls off from the dot edge. 0 = soft/diffuse, 1 = tight/sharp. */
+  glowFalloff: number;
   /** Glow color as a hex string "#RRGGBB". */
   glowColor: string;
   /** Motion settings. */
@@ -23,12 +25,14 @@ export const DEFAULT_SETTINGS: GlowSettings = {
   glowEnabled: true,
   glowRadius: 1.6,
   glowIntensity: 0.6,
+  glowFalloff: 0.7,
   glowColor: "#4DA3FF",
   animation: DEFAULT_ANIMATION,
 };
 
 export const RADIUS_RANGE = { min: 1.0, max: 5.0, step: 0.1 } as const;
 export const INTENSITY_RANGE = { min: 0, max: 1, step: 0.01 } as const;
+export const FALLOFF_RANGE = { min: 0, max: 1, step: 0.05 } as const;
 
 export const SPEED_RANGE = { min: 0.25, max: 3, step: 0.05 } as const;
 export const OVERSHOOT_RANGE = { min: 0, max: 1, step: 0.01 } as const;

@@ -4,6 +4,7 @@ import CurveEditor from "./CurveEditor";
 import {
   CENTER_GROW_RANGE,
   COLLAPSE_RANGE,
+  FALLOFF_RANGE,
   INTENSITY_RANGE,
   OVERSHOOT_RANGE,
   RADIUS_RANGE,
@@ -106,6 +107,17 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
           disabled={!on}
           onChange={(glowIntensity) => patch({ glowIntensity })}
           format={(v) => `${Math.round(v * 100)}%`}
+        />
+
+        <Slider
+          label="Falloff"
+          value={settings.glowFalloff}
+          min={FALLOFF_RANGE.min}
+          max={FALLOFF_RANGE.max}
+          step={FALLOFF_RANGE.step}
+          disabled={!on}
+          onChange={(glowFalloff) => patch({ glowFalloff })}
+          format={(v) => v < 0.2 ? "Soft" : v > 0.8 ? "Sharp" : `${Math.round(v * 100)}%`}
         />
 
         <label className="color-field">

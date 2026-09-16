@@ -45,19 +45,23 @@ export type GradientStop = {
  * tapers to 0 at the edge. This exponential-like shape hugs the dot tightly
  * instead of spreading as a diffuse halo.
  *
- *   0                  → glowIntensity      (center, under dot)
- *   dotEdge            → glowIntensity      (dot surface, full)
- *   dotEdge + 25% out  → glowIntensity*0.3  (fast initial dropoff)
- *   1                  → 0                  (halo edge)
+ *   0                  → glowIntensity             (center, under dot)
+ *   dotEdge            → glowIntensity             (dot surface, full)
+ *   dotEdge + 25% out  → glowIntensity*(1-falloff) (mid-stop shaped by falloff)
+ *   1                  → 0                         (halo edge)
+ *
+ * glowFalloff 0 = soft/diffuse (mid stays near full → gradual spread)
+ * glowFalloff 1 = tight/sharp  (mid drops to 0      → bloom hugs the dot)
  */
 export function haloStops(s: GlowSettings): GradientStop[] {
   const dotEdge = 1 / Math.max(s.glowRadius, 1.01);
   const outer = 1 - dotEdge;
-  const mid = dotEdge + outer * 0.25; // 25% into the outer zone
+  const mid = dotEdge + outer * 0.25;
+  const midOpacity = s.glowIntensity * (1 - (s.glowFalloff ?? 0.7));
   return [
     { offset: 0,       color: s.glowColor, opacity: s.glowIntensity },
     { offset: dotEdge, color: s.glowColor, opacity: s.glowIntensity },
-    { offset: mid,     color: s.glowColor, opacity: s.glowIntensity * 0.3 },
+    { offset: mid,     color: s.glowColor, opacity: midOpacity },
     { offset: 1,       color: s.glowColor, opacity: 0 },
   ];
 }
