@@ -3,7 +3,7 @@ import IconPreview from "./components/IconPreview";
 import ControlsPanel from "./components/ControlsPanel";
 import PresetsPanel from "./components/PresetsPanel";
 import { DEFAULT_SETTINGS, type GlowSettings } from "./model/settings";
-import type { AnimationType } from "./model/animation";
+import { DEFAULT_ANIMATION, type AnimationType } from "./model/animation";
 import { loadTunings, saveTunings } from "./model/animationTunings";
 import { generateLottie } from "./lottie/generateLottie";
 import { downloadLottie } from "./lottie/download";
@@ -32,8 +32,13 @@ export default function App() {
   };
 
   // Animation dropdown: switch type and restore THAT type's remembered params.
+  // Always merge over DEFAULT_ANIMATION so any missing fields (e.g. stale state
+  // from HMR before a new type was added) never produce a partially-undefined object.
   const handleSelectAnimation = (type: AnimationType) => {
-    setSettings((s) => ({ ...s, animation: { ...tunings[type], type } }));
+    setSettings((s) => ({
+      ...s,
+      animation: { ...DEFAULT_ANIMATION, ...(tunings[type] ?? {}), type },
+    }));
   };
 
   // Recalling a preset adopts its full settings verbatim, and seeds the
