@@ -110,5 +110,6 @@ export const SEED_TUNINGS: Partial<Record<AnimationType, AnimationSettings>> = {
     ringShrink: 0.3,
     centerGrowEnabled: true,
     centerGrow: 1.1,
+    centerMatchRing: false,
   },
 };
