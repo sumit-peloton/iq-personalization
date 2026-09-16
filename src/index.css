@@ -44,16 +44,39 @@ body {
   aspect-ratio: 1 / 1;
 }
 
-/* ---- Controls: minimal, right side ---- */
+/* ---- Controls: minimal, right side — scrolls independently ---- */
 .controls {
-  position: absolute;
-  top: 50%;
+  position: fixed;
+  top: 40px;
+  bottom: 40px;
   right: 56px;
-  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: 30px;
   width: 240px;
+  overflow-y: auto;
+  /* hide the scrollbar visually but keep it functional */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* fade the top/bottom edges so content doesn't hard-clip */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 24px,
+    black calc(100% - 24px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 24px,
+    black calc(100% - 24px),
+    transparent 100%
+  );
+}
+
+.controls::-webkit-scrollbar {
+  display: none;
 }
 
 /* Glow's sub-controls, inset under the GLOW toggle to show hierarchy. */
