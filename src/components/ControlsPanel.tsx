@@ -124,26 +124,24 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
             <span>Curve</span>
             <CurveEditor value={anim.ease} onChange={(ease) => patchAnim({ ease })} />
           </div>
-          {!isRotate && <>
-            <Slider
-              label="Overshoot"
-              value={anim.overshoot}
-              min={OVERSHOOT_RANGE.min}
-              max={OVERSHOOT_RANGE.max}
-              step={OVERSHOOT_RANGE.step}
-              onChange={(overshoot) => patchAnim({ overshoot })}
-              format={(v) => `${Math.round(v * 100)}%`}
-            />
-            <Slider
-              label="Rubberband"
-              value={anim.rubberband}
-              min={RUBBERBAND_RANGE.min}
-              max={RUBBERBAND_RANGE.max}
-              step={RUBBERBAND_RANGE.step}
-              onChange={(rubberband) => patchAnim({ rubberband })}
-              format={(v) => `${Math.round(v * 100)}%`}
-            />
-          </>}
+          <Slider
+            label="Overshoot"
+            value={anim.overshoot}
+            min={OVERSHOOT_RANGE.min}
+            max={OVERSHOOT_RANGE.max}
+            step={OVERSHOOT_RANGE.step}
+            onChange={(overshoot) => patchAnim({ overshoot })}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
+          <Slider
+            label="Rubberband"
+            value={anim.rubberband}
+            min={RUBBERBAND_RANGE.min}
+            max={RUBBERBAND_RANGE.max}
+            step={RUBBERBAND_RANGE.step}
+            onChange={(rubberband) => patchAnim({ rubberband })}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
           <Slider
             label={isRotate ? "Dot Shrink" : "Ring Shrink"}
             value={anim.ringShrink}

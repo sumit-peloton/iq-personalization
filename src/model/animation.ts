@@ -97,14 +97,32 @@ export function cycleFrames(anim: AnimationSettings): number {
 }
 
 /**
- * Position progress 0→1 for one clockwise swap-step. Uses the full cycle with
- * no hold — the ease curve shapes acceleration, and since the loop boundary
- * is an invisible snap (all outer dots are identical), the overall effect is a
- * continuous flowing rotation.
+ * Elastic spring added on top of the rotation ease near the destination.
+ * Fires late in the cycle (sin²(π·u³) peaks near u≈0.8) so the overshoot
+ * happens as the dot arrives at the target — not mid-travel. Zero VALUE and
+ * zero VELOCITY at both u=0 and u=1, so the loop boundary is seamless.
+ * A positive overshoot means the dot travels slightly PAST the target (further
+ * clockwise) before springing back, giving a natural elastic landing that
+ * breaks the "decelerate to a pause" feel of a plain ease curve.
+ */
+function rotateSpring(u: number, anim: AnimationSettings): number {
+  if (anim.overshoot <= 0) return 0;
+  const w = Math.sin(Math.PI * u * u * u); // late-biased; w(0)=w(1)=0
+  const wobbles = anim.rubberband * 3;
+  const osc = Math.cos(2 * Math.PI * wobbles * (u - 0.8));
+  return anim.overshoot * 0.3 * w * w * osc;
+}
+
+/**
+ * Position progress for one clockwise swap-step. Uses the full cycle with no
+ * hold — the ease curve shapes acceleration and the spring adds an elastic
+ * landing at the target so the animation reads as continuous rather than
+ * step-pause-step. Progress can briefly exceed 1 (overshoot past target) but
+ * returns to exactly 1 at u=1 for a seamless loop.
  */
 export function rotateProgress(u: number, anim: AnimationSettings): number {
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-  return ease(u);
+  return ease(u) + rotateSpring(u, anim);
 }
 
 /**
