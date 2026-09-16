@@ -55,22 +55,25 @@ body {
   gap: 30px;
   width: 240px;
   overflow-y: auto;
+  /* padding lets the last item scroll fully clear the bottom fade zone */
+  padding-bottom: 48px;
   /* hide the scrollbar visually but keep it functional */
   scrollbar-width: none;
   -ms-overflow-style: none;
-  /* fade the top/bottom edges so content doesn't hard-clip */
+  /* fade only the top edge; bottom fades over a short distance so the last
+     item is still fully readable when scrolled to the end */
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0px,
     black 24px,
-    black calc(100% - 24px),
+    black calc(100% - 12px),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0px,
     black 24px,
-    black calc(100% - 24px),
+    black calc(100% - 12px),
     transparent 100%
   );
 }
