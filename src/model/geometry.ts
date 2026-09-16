@@ -5,10 +5,25 @@
 
 import { DOT_R } from "./dots";
 import type { GlowSettings } from "./settings";
+import { hexToRgb01, mixRgb, rgb01ToHex } from "./color";
+
+// How much of the glow color bleeds into the dot when glow is enabled.
+// At 0.25 the dot picks up a strong tint without losing its identity.
+const DOT_TINT = 0.25;
 
 /** Radius of the glow halo in canvas units. */
 export function haloRadius(s: GlowSettings): number {
   return DOT_R * s.glowRadius;
+}
+
+/**
+ * Fill color for the solid dot. When glow is enabled the dot is tinted
+ * DOT_TINT% toward the glow color so the dot and its halo read as one
+ * luminous object rather than a white circle with colored light behind it.
+ */
+export function dotColor(s: GlowSettings): string {
+  if (!s.glowEnabled) return s.iconColor;
+  return rgb01ToHex(mixRgb(hexToRgb01(s.iconColor), hexToRgb01(s.glowColor), DOT_TINT));
 }
 
 export type GradientStop = {
@@ -21,24 +36,28 @@ export type GradientStop = {
 };
 
 /**
- * Three-stop radial gradient that makes the glow feel like it emanates from
- * the dot rather than floating around it as a ring.
+ * Four-stop radial gradient with a tight power-curve falloff, making the glow
+ * bloom from the dot's surface like a real light source.
  *
- * The solid dot covers the inner (DOT_R / haloRadius = 1/glowRadius) portion
- * of the gradient, so a simple center→edge fade reads as an outline because
- * the brightest part is hidden. Instead we hold full intensity all the way to
- * the dot's edge, then fade from there to transparent — so the visible glow
- * starts at full brightness right at the dot's surface.
+ * The solid dot covers [0, dotEdge] of the gradient, so we hold full intensity
+ * there (hidden, but sets the base). The key is the mid-stop just outside the
+ * dot: it drops to ~30% intensity over the first 25% of the outer zone, then
+ * tapers to 0 at the edge. This exponential-like shape hugs the dot tightly
+ * instead of spreading as a diffuse halo.
  *
- *   0            → glowIntensity  (center, hidden under the solid dot)
- *   1/glowRadius → glowIntensity  (dot edge — first visible point, full brightness)
- *   1            → 0              (halo edge — fully transparent)
+ *   0                  → glowIntensity      (center, under dot)
+ *   dotEdge            → glowIntensity      (dot surface, full)
+ *   dotEdge + 25% out  → glowIntensity*0.3  (fast initial dropoff)
+ *   1                  → 0                  (halo edge)
  */
-export function haloStops(s: GlowSettings): [GradientStop, GradientStop, GradientStop] {
-  const dotEdge = 1 / Math.max(s.glowRadius, 1.01); // where the solid dot ends, normalized
+export function haloStops(s: GlowSettings): GradientStop[] {
+  const dotEdge = 1 / Math.max(s.glowRadius, 1.01);
+  const outer = 1 - dotEdge;
+  const mid = dotEdge + outer * 0.25; // 25% into the outer zone
   return [
     { offset: 0,       color: s.glowColor, opacity: s.glowIntensity },
     { offset: dotEdge, color: s.glowColor, opacity: s.glowIntensity },
+    { offset: mid,     color: s.glowColor, opacity: s.glowIntensity * 0.3 },
     { offset: 1,       color: s.glowColor, opacity: 0 },
   ];
 }

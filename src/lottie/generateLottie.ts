@@ -14,7 +14,7 @@
 // matter how complex the easing/overshoot/rubberband is.
 
 import { CANVAS, DOTS, DOT_R, toCanvas } from "../model/dots";
-import { haloRadius } from "../model/geometry";
+import { dotColor, haloRadius, haloStops } from "../model/geometry";
 import { hexToRgb01 } from "../model/color";
 import {
   CENTER_INDEX,
@@ -68,10 +68,10 @@ function groupTransform(pos: Vec2Prop, scale: Vec2Prop = STATIC_SCALE): Transfor
   };
 }
 
-/** A solid dot: ellipse (diameter = 2*DOT_R) filled with the icon color. */
-export function buildDotGroup(pos: Vec2Prop, color: string, scale?: Vec2Prop): ShapeGroup {
+/** A solid dot: ellipse (diameter = 2*DOT_R) filled with the (tinted) dot color. */
+export function buildDotGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop): ShapeGroup {
   const d = 2 * DOT_R;
-  const { r: cr, g: cg, b: cb } = hexToRgb01(color);
+  const { r: cr, g: cg, b: cb } = hexToRgb01(dotColor(s));
   const fill: SolidFill = {
     ty: "fl",
     c: { a: 0, k: [cr, cg, cb, 1] },
@@ -96,18 +96,18 @@ export function buildDotGroup(pos: Vec2Prop, color: string, scale?: Vec2Prop): S
  * Gradient stop packing (the critical bit): g.k.k is a flat number array.
  * COLOR stops come first, each as [offset, r, g, b] (4 numbers), repeated g.p
  * times. ALPHA stops are appended AFTER, each as [offset, alpha] (2 numbers).
- * g.p is the count of COLOR stops only. Here: 2 color stops (glow color at 0
- * and 1) + 2 alpha stops (intensity at 0, fully transparent at 1).
+ * g.p is the count of COLOR stops only. Driven by the same haloStops() used by
+ * the SVG preview so preview == export.
  */
 export function buildHaloGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop): ShapeGroup {
   const r = haloRadius(s);
   const d = 2 * r;
+  const stops = haloStops(s);
   const { r: cr, g: cg, b: cb } = hexToRgb01(s.glowColor);
 
-  // Normalized position of the dot's edge within the halo gradient. The solid
-  // dot covers [0, dotEdge], so holding full intensity to dotEdge means the
-  // glow appears to emanate from the dot surface rather than outlining it.
-  const dotEdge = 1 / Math.max(s.glowRadius, 1.01);
+  // Pack stops into Lottie's flat array format: all color entries first, then all alpha entries.
+  const colorFlat = stops.flatMap(st => [st.offset, cr, cg, cb]);
+  const alphaFlat = stops.flatMap(st => [st.offset, st.opacity]);
 
   const gradient: GradientFill = {
     ty: "gf",
@@ -116,20 +116,8 @@ export function buildHaloGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop)
     s: { a: 0, k: [0, 0] }, // center (local coords)
     e: { a: 0, k: [r, 0] }, // |e - s| = halo radius
     g: {
-      p: 3,
-      k: {
-        a: 0,
-        k: [
-          // color stops: offset, r, g, b (3 stops)
-          0,       cr, cg, cb,
-          dotEdge, cr, cg, cb,
-          1,       cr, cg, cb,
-          // alpha stops: offset, alpha (3 stops)
-          0,       s.glowIntensity,
-          dotEdge, s.glowIntensity,
-          1,       0,
-        ],
-      },
+      p: stops.length,
+      k: { a: 0, k: [...colorFlat, ...alphaFlat] },
     },
     r: 1,
     bm: 0,
@@ -245,7 +233,7 @@ export function generateLottie(s: GlowSettings): LottieAnimation {
   const positions = DOTS.map((_, i) => dotPosition(i, s));
   const scales = DOTS.map((_, i) => dotScale(i, s));
 
-  const dotShapes = DOTS.map((_, i) => buildDotGroup(positions[i], s.iconColor, scales[i]));
+  const dotShapes = DOTS.map((_, i) => buildDotGroup(positions[i], s, scales[i]));
 
   // Layers render top-first: dots layer (ind 1) sits above halos layer (ind 2).
   const layers = [buildLayer("dots", 1, dotShapes, op)];

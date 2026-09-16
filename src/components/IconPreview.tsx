@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CANVAS, DOTS, DOT_R, toCanvas } from "../model/dots";
-import { haloRadius, haloStops } from "../model/geometry";
+import { dotColor, haloRadius, haloStops } from "../model/geometry";
 import {
   CENTER_INDEX,
   centerScale,
@@ -46,6 +46,7 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
   const r = haloRadius(settings);
   const stops = haloStops(settings);
   const showGlow = settings.glowEnabled;
+  const dotFill = dotColor(settings);
 
   const anim = settings.animation;
   const active = anim.type !== "none";
@@ -102,9 +103,9 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
           <circle key={`halo-${i}`} cx={c.x} cy={c.y} r={r * scale(i)} fill={`url(#halo-${i})`} />
         ))}
 
-      {/* Solid dots (front) */}
+      {/* Solid dots (front) — tinted toward the glow color when glow is on */}
       {positions.map((c, i) => (
-        <circle key={`dot-${i}`} cx={c.x} cy={c.y} r={DOT_R * scale(i)} fill={settings.iconColor} />
+        <circle key={`dot-${i}`} cx={c.x} cy={c.y} r={DOT_R * scale(i)} fill={dotFill} />
       ))}
     </svg>
   );

@@ -12,3 +12,19 @@ export function hexToRgb01(hex: string): Rgb {
   const b = int & 0xff;
   return { r: r / 255, g: g / 255, b: b / 255 };
 }
+
+/** Convert 0..1 RGB back to "#RRGGBB". */
+export function rgb01ToHex({ r, g, b }: Rgb): string {
+  const c = (v: number) => Math.round(Math.min(Math.max(v, 0), 1) * 255)
+    .toString(16).padStart(2, "0");
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+
+/** Linearly blend a toward b by t (0 = all a, 1 = all b). */
+export function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
+  return {
+    r: a.r + (b.r - a.r) * t,
+    g: a.g + (b.g - a.g) * t,
+    b: a.b + (b.b - a.b) * t,
+  };
+}
