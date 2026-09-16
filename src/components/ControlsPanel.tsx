@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Slider from "./Slider";
 import CurveEditor from "./CurveEditor";
 import {
@@ -14,7 +13,6 @@ import {
   type GlowSettings,
 } from "../model/settings";
 import { ANIMATIONS, type AnimationSettings, type AnimationType } from "../model/animation";
-import { SEED_PRESETS } from "../data/seed";
 
 type Props = {
   settings: GlowSettings;
@@ -24,12 +22,7 @@ type Props = {
 };
 
 export default function ControlsPanel({ settings, onChange, onSelectAnimation }: Props) {
-  const [presetId, setPresetId] = useState("");
-
-  const patch = (p: Partial<GlowSettings>) => {
-    setPresetId("");
-    onChange({ ...settings, ...p });
-  };
+  const patch = (p: Partial<GlowSettings>) => onChange({ ...settings, ...p });
   const patchAnim = (p: Partial<AnimationSettings>) =>
     patch({ animation: { ...settings.animation, ...p } });
   const on = settings.glowEnabled;
@@ -38,36 +31,6 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
 
   return (
     <div className="controls">
-      <label className="select-field">
-        <span>Style</span>
-        <select
-          value={presetId}
-          onChange={(e) => {
-            const id = e.target.value;
-            if (!id) return;
-            const preset = SEED_PRESETS.find((p) => p.id === id);
-            if (preset) {
-              setPresetId(id);
-              onChange({
-                ...settings,
-                iconColor: preset.settings.iconColor,
-                glowEnabled: preset.settings.glowEnabled,
-                glowColor: preset.settings.glowColor,
-                glowRadius: preset.settings.glowRadius,
-                glowIntensity: preset.settings.glowIntensity,
-              });
-            }
-          }}
-        >
-          <option value="">Custom</option>
-          {SEED_PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
       <label className="color-field">
         <span>Icon</span>
         <input
