@@ -32,8 +32,8 @@ export type AnimationSettings = {
   centerGrow: number;
   /** Rotate only: mirror the outer dots' shrink pulse on the center dot too. */
   centerMatchRing: boolean;
-  /** Rotate only: fraction of each cycle spent holding at the target (0 = continuous). */
-  rotateHold: number;
+  /** Rotate only: pause at each position before continuing (false = continuous). */
+  rotateHold: boolean;
 };
 
 export const DEFAULT_ANIMATION: AnimationSettings = {
@@ -47,7 +47,7 @@ export const DEFAULT_ANIMATION: AnimationSettings = {
   centerGrowEnabled: true,
   centerGrow: 1.6,
   centerMatchRing: false,
-  rotateHold: 0,
+  rotateHold: false,
 };
 
 export const ANIMATIONS: { value: AnimationType; label: string }[] = [
@@ -124,17 +124,15 @@ function rotateSpring(u: number, anim: AnimationSettings): number {
  * but is exactly 1 at the end of the move phase and throughout the hold, so
  * the loop boundary is seamless.
  */
-// rotateHold is stored 0→1; multiply by this to get the actual cycle fraction.
-// 1 = half the cycle spent holding (move and hold split 50/50).
-// The original pre-slider default (ROTATE_MOVE_FRAC=0.7) maps to rotateHold≈0.6.
-const ROTATE_HOLD_MAX_FRAC = 0.5;
+// When hold is enabled, the move phase takes this fraction of the cycle;
+// the remaining 30% the dot sits at the target position.
+const ROTATE_MOVE_FRAC = 0.7;
 
 export function rotateProgress(u: number, anim: AnimationSettings): number {
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-  const holdFrac = (anim.rotateHold ?? 0) * ROTATE_HOLD_MAX_FRAC;
-  const moveFrac = Math.max(1 - holdFrac, 0.05); // at least 5% for move
-  if (u >= moveFrac) return 1; // hold at destination
-  const t = u / moveFrac; // normalised 0→1 within the move window
+  if (!anim.rotateHold) return ease(u) + rotateSpring(u, anim); // continuous
+  if (u >= ROTATE_MOVE_FRAC) return 1; // hold at destination
+  const t = u / ROTATE_MOVE_FRAC; // normalised within the move window
   return ease(t) + rotateSpring(t, anim);
 }
 
@@ -146,8 +144,7 @@ export function rotateProgress(u: number, anim: AnimationSettings): number {
  */
 export function ringRotateScale(u: number, anim: AnimationSettings): number {
   if (anim.ringShrink <= 0) return 1;
-  const holdFrac = (anim.rotateHold ?? 0) * ROTATE_HOLD_MAX_FRAC;
-  const moveFrac = Math.max(1 - holdFrac, 0.05);
+  const moveFrac = anim.rotateHold ? ROTATE_MOVE_FRAC : 1;
   const t = Math.min(u / moveFrac, 1); // clamped: hold phase keeps t=1 → scale=1
   return 1 - anim.ringShrink * Math.sin(Math.PI * t);
 }

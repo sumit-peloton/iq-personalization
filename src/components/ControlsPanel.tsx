@@ -8,7 +8,6 @@ import {
   OVERSHOOT_RANGE,
   RADIUS_RANGE,
   RING_SHRINK_RANGE,
-  ROTATE_HOLD_RANGE,
   RUBBERBAND_RANGE,
   SPEED_RANGE,
   type GlowSettings,
@@ -161,15 +160,14 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
               />
               <span>Center Matches</span>
             </label>
-            <Slider
-              label="Hold"
-              value={anim.rotateHold}
-              min={ROTATE_HOLD_RANGE.min}
-              max={ROTATE_HOLD_RANGE.max}
-              step={ROTATE_HOLD_RANGE.step}
-              onChange={(rotateHold) => patchAnim({ rotateHold })}
-              format={(v) => v === 0 ? "None" : `${Math.round(v * 100)}%`}
-            />
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={anim.rotateHold}
+                onChange={(e) => patchAnim({ rotateHold: e.target.checked })}
+              />
+              <span>Hold</span>
+            </label>
           </>)}
           {!isRotate && <>
             <Slider
