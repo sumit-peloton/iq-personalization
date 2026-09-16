@@ -125,8 +125,9 @@ function rotateSpring(u: number, anim: AnimationSettings): number {
  * the loop boundary is seamless.
  */
 // rotateHold is stored 0→1; multiply by this to get the actual cycle fraction.
-// 1 = the original pre-slider hold (30% of cycle, i.e. move takes 70%).
-const ROTATE_HOLD_MAX_FRAC = 0.3;
+// 1 = half the cycle spent holding (move and hold split 50/50).
+// The original pre-slider default (ROTATE_MOVE_FRAC=0.7) maps to rotateHold≈0.6.
+const ROTATE_HOLD_MAX_FRAC = 0.5;
 
 export function rotateProgress(u: number, anim: AnimationSettings): number {
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
