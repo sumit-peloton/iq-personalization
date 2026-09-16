@@ -21,8 +21,8 @@ export type GlowSettings = {
 export const DEFAULT_SETTINGS: GlowSettings = {
   iconColor: "#FFFFFF",
   glowEnabled: true,
-  glowRadius: 3.0,
-  glowIntensity: 0.8,
+  glowRadius: 1.6,
+  glowIntensity: 0.6,
   glowColor: "#4DA3FF",
   animation: DEFAULT_ANIMATION,
 };
