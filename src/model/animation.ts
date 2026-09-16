@@ -129,10 +129,17 @@ function rotateSpring(u: number, anim: AnimationSettings): number {
 const ROTATE_MOVE_FRAC = 0.7;
 
 export function rotateProgress(u: number, anim: AnimationSettings): number {
+  if (!anim.rotateHold) {
+    // Continuous: linear base so velocity is identical at both loop boundaries
+    // (no deceleration-to-zero means no perceived pause at the snap point).
+    // The spring is zero-valued and zero-derivative at u=0 and u=1, so it
+    // adds an elastic flourish without disrupting the seamless loop.
+    return u + rotateSpring(u, anim);
+  }
+  // Hold: ease into the target, then pause for the remaining 30% of the cycle.
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-  if (!anim.rotateHold) return ease(u) + rotateSpring(u, anim); // continuous
-  if (u >= ROTATE_MOVE_FRAC) return 1; // hold at destination
-  const t = u / ROTATE_MOVE_FRAC; // normalised within the move window
+  if (u >= ROTATE_MOVE_FRAC) return 1;
+  const t = u / ROTATE_MOVE_FRAC;
   return ease(t) + rotateSpring(t, anim);
 }
 
@@ -144,8 +151,10 @@ export function rotateProgress(u: number, anim: AnimationSettings): number {
  */
 export function ringRotateScale(u: number, anim: AnimationSettings): number {
   if (anim.ringShrink <= 0) return 1;
-  const moveFrac = anim.rotateHold ? ROTATE_MOVE_FRAC : 1;
-  const t = Math.min(u / moveFrac, 1); // clamped: hold phase keeps t=1 → scale=1
+  // Continuous: scale pulse runs over the full cycle (sin(πu) is zero at both
+  // endpoints so the loop is seamless and the pulse is symmetric).
+  // Hold: compress the pulse into the move window; full size during the hold.
+  const t = anim.rotateHold ? Math.min(u / ROTATE_MOVE_FRAC, 1) : u;
   return 1 - anim.ringShrink * Math.sin(Math.PI * t);
 }
 
