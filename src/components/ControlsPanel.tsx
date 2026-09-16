@@ -144,6 +144,15 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
               format={(v) => `${Math.round(v * 100)}%`}
             />
           </>}
+          <Slider
+            label={isRotate ? "Dot Shrink" : "Ring Shrink"}
+            value={anim.ringShrink}
+            min={RING_SHRINK_RANGE.min}
+            max={RING_SHRINK_RANGE.max}
+            step={RING_SHRINK_RANGE.step}
+            onChange={(ringShrink) => patchAnim({ ringShrink })}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
           {!isRotate && <>
             <Slider
               label="Collapse"
@@ -152,15 +161,6 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
               max={COLLAPSE_RANGE.max}
               step={COLLAPSE_RANGE.step}
               onChange={(collapse) => patchAnim({ collapse })}
-              format={(v) => `${Math.round(v * 100)}%`}
-            />
-            <Slider
-              label="Ring Shrink"
-              value={anim.ringShrink}
-              min={RING_SHRINK_RANGE.min}
-              max={RING_SHRINK_RANGE.max}
-              step={RING_SHRINK_RANGE.step}
-              onChange={(ringShrink) => patchAnim({ ringShrink })}
               format={(v) => `${Math.round(v * 100)}%`}
             />
             <label className="toggle">

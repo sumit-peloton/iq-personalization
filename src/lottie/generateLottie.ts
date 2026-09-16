@@ -24,6 +24,7 @@ import {
   collapseProgress,
   collapsedPoint,
   cycleFrames,
+  ringRotateScale,
   ringScale,
   rotateProgress,
 } from "../model/animation";
@@ -224,14 +225,18 @@ function dotScale(index: number, s: GlowSettings): Vec2Prop {
   const isCenter = index === CENTER_INDEX;
   const centerAnimated = isCenter && anim.centerGrowEnabled && anim.centerGrow !== 1
     && anim.type !== "rotate-clockwise";
+  const ringRotateAnimated = !isCenter && anim.type === "rotate-clockwise" && anim.ringShrink > 0;
   const ringAnimated = !isCenter && anim.ringShrink > 0 && anim.collapse > 0
     && anim.type !== "rotate-clockwise";
 
-  if (anim.type === "none" || (!centerAnimated && !ringAnimated)) {
+  if (anim.type === "none" || (!centerAnimated && !ringAnimated && !ringRotateAnimated)) {
     return { a: 0, k: [100, 100] };
   }
 
-  const scaleAt = (u: number) => (isCenter ? centerScale(u, anim) : ringScale(u, anim));
+  const scaleAt = (u: number) =>
+    isCenter ? centerScale(u, anim)
+    : ringRotateAnimated ? ringRotateScale(u, anim)
+    : ringScale(u, anim);
   const total = cycleFrames(anim);
   const step = Math.max(1, Math.round(total / 60));
 

@@ -93,19 +93,27 @@ export function cycleFrames(anim: AnimationSettings): number {
   return Math.max(2, Math.round(cycleDuration(anim) * FPS));
 }
 
-// Fraction of the rotate cycle spent moving; the rest is a hold at the target
-// so each position feels "settled" before the next step begins.
-const ROTATE_MOVE_FRAC = 0.7;
-
 /**
- * Clockwise rotation progress 0→1 for one swap-step at normalized cycle time u.
- * The dots ease into the next position over ROTATE_MOVE_FRAC of the cycle, then
- * hold there. Since all outer dots are identical, the loop-reset snap is invisible.
+ * Position progress 0→1 for one clockwise swap-step. Uses the full cycle with
+ * no hold — the ease curve shapes acceleration, and since the loop boundary
+ * is an invisible snap (all outer dots are identical), the overall effect is a
+ * continuous flowing rotation.
  */
 export function rotateProgress(u: number, anim: AnimationSettings): number {
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-  if (u <= ROTATE_MOVE_FRAC) return ease(u / ROTATE_MOVE_FRAC);
-  return 1; // hold at target until next cycle
+  return ease(u);
+}
+
+/**
+ * Scale pulse for an outer dot during the clockwise rotation. The dot shrinks
+ * mid-travel and grows back on arrival, giving visible shrink → move → grow
+ * phases that overlap continuously. The symmetric sin(πu) envelope is zero at
+ * the loop boundaries (full size at rest and at arrival), so the loop is
+ * seamless. ringShrink controls the depth of the dip.
+ */
+export function ringRotateScale(u: number, anim: AnimationSettings): number {
+  if (anim.ringShrink <= 0) return 1;
+  return 1 - anim.ringShrink * Math.sin(Math.PI * u);
 }
 
 // --- Easing helpers ---

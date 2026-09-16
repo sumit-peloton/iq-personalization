@@ -8,6 +8,7 @@ import {
   collapseProgress,
   collapsedPoint,
   cycleDuration,
+  ringRotateScale,
   ringScale,
   rotateProgress,
 } from "../model/animation";
@@ -68,10 +69,11 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
     }
     return collapsedPoint(rest, center, collapseProgress(u, anim));
   });
-  // Center grows during collapse; outer dots shrink as they collapse (not during rotate).
+  // Center grows during collapse; outer dots get a scale pulse during rotation.
   const scale = (i: number) => {
     if (!active) return 1;
-    return i === CENTER_INDEX ? centerScale(u, anim) : ringScale(u, anim);
+    if (i === CENTER_INDEX) return centerScale(u, anim);
+    return isRotate ? ringRotateScale(u, anim) : ringScale(u, anim);
   };
 
   return (
