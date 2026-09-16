@@ -104,6 +104,11 @@ export function buildHaloGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop)
   const d = 2 * r;
   const { r: cr, g: cg, b: cb } = hexToRgb01(s.glowColor);
 
+  // Normalized position of the dot's edge within the halo gradient. The solid
+  // dot covers [0, dotEdge], so holding full intensity to dotEdge means the
+  // glow appears to emanate from the dot surface rather than outlining it.
+  const dotEdge = 1 / Math.max(s.glowRadius, 1.01);
+
   const gradient: GradientFill = {
     ty: "gf",
     t: 2, // radial
@@ -111,16 +116,18 @@ export function buildHaloGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop)
     s: { a: 0, k: [0, 0] }, // center (local coords)
     e: { a: 0, k: [r, 0] }, // |e - s| = halo radius
     g: {
-      p: 2,
+      p: 3,
       k: {
         a: 0,
         k: [
-          // color stops: offset, r, g, b
-          0, cr, cg, cb,
-          1, cr, cg, cb,
-          // alpha stops: offset, alpha
-          0, s.glowIntensity,
-          1, 0,
+          // color stops: offset, r, g, b (3 stops)
+          0,       cr, cg, cb,
+          dotEdge, cr, cg, cb,
+          1,       cr, cg, cb,
+          // alpha stops: offset, alpha (3 stops)
+          0,       s.glowIntensity,
+          dotEdge, s.glowIntensity,
+          1,       0,
         ],
       },
     },

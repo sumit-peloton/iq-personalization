@@ -21,13 +21,24 @@ export type GradientStop = {
 };
 
 /**
- * Two-stop radial gradient: full-color glow at the center fading to fully
- * transparent at the halo edge. Only the alpha differs between stops, so the
- * halo blends cleanly over any background.
+ * Three-stop radial gradient that makes the glow feel like it emanates from
+ * the dot rather than floating around it as a ring.
+ *
+ * The solid dot covers the inner (DOT_R / haloRadius = 1/glowRadius) portion
+ * of the gradient, so a simple center→edge fade reads as an outline because
+ * the brightest part is hidden. Instead we hold full intensity all the way to
+ * the dot's edge, then fade from there to transparent — so the visible glow
+ * starts at full brightness right at the dot's surface.
+ *
+ *   0            → glowIntensity  (center, hidden under the solid dot)
+ *   1/glowRadius → glowIntensity  (dot edge — first visible point, full brightness)
+ *   1            → 0              (halo edge — fully transparent)
  */
-export function haloStops(s: GlowSettings): [GradientStop, GradientStop] {
+export function haloStops(s: GlowSettings): [GradientStop, GradientStop, GradientStop] {
+  const dotEdge = 1 / Math.max(s.glowRadius, 1.01); // where the solid dot ends, normalized
   return [
-    { offset: 0, color: s.glowColor, opacity: s.glowIntensity },
-    { offset: 1, color: s.glowColor, opacity: 0 },
+    { offset: 0,       color: s.glowColor, opacity: s.glowIntensity },
+    { offset: dotEdge, color: s.glowColor, opacity: s.glowIntensity },
+    { offset: 1,       color: s.glowColor, opacity: 0 },
   ];
 }
