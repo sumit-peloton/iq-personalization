@@ -129,15 +129,20 @@ function rotateSpring(u: number, anim: AnimationSettings): number {
 const ROTATE_MOVE_FRAC = 0.7;
 
 export function rotateProgress(u: number, anim: AnimationSettings): number {
-  if (!anim.rotateHold) {
-    // Continuous: linear base so velocity is identical at both loop boundaries
-    // (no deceleration-to-zero means no perceived pause at the snap point).
-    // The spring is zero-valued and zero-derivative at u=0 and u=1, so it
-    // adds an elastic flourish without disrupting the seamless loop.
-    return u + rotateSpring(u, anim);
-  }
-  // Hold: ease into the target, then pause for the remaining 30% of the cycle.
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
+
+  if (!anim.rotateHold) {
+    // Continuous: blend the curve with linear using a tent weight (1 − |2u−1|).
+    // Weight is 0 at u=0 and u=1 (pure linear → velocity-continuous loop) and
+    // 1 at u=0.5 (full curve influence at mid-cycle). This lets the Curve editor
+    // shape the rhythm — faster/slower through the midpoint — without introducing
+    // any velocity kink at the loop boundary.
+    const blend = 1 - Math.abs(2 * u - 1);
+    const shaped = u + (ease(u) - u) * blend;
+    return shaped + rotateSpring(u, anim);
+  }
+
+  // Hold: ease into the target, then pause for the remaining 30% of the cycle.
   if (u >= ROTATE_MOVE_FRAC) return 1;
   const t = u / ROTATE_MOVE_FRAC;
   return ease(t) + rotateSpring(t, anim);
