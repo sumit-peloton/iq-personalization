@@ -23,6 +23,7 @@ import {
   collapseProgress,
   collapsedPoint,
   cycleFrames,
+  ringScale,
 } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 import type {
@@ -195,28 +196,33 @@ function dotPosition(index: number, s: GlowSettings): Vec2Prop {
 }
 
 /**
- * Scale prop for one dot. Only the center dot grows (with the collapse); all
- * others stay at 100%. Baked from centerScale across one cycle, mirroring the
- * position baking so preview == export.
+ * Scale prop for one dot. The center dot grows (centerScale); the outer dots
+ * shrink as they collapse (ringScale). Whichever applies is baked across one
+ * cycle, mirroring the position baking so preview == export. Dots with no scale
+ * motion stay a static 100%.
  */
 function dotScale(index: number, s: GlowSettings): Vec2Prop {
   const anim = s.animation;
+  const isCenter = index === CENTER_INDEX;
+  const centerAnimated = isCenter && anim.centerGrowEnabled && anim.centerGrow !== 1;
+  const ringAnimated = !isCenter && anim.ringShrink > 0 && anim.collapse > 0;
 
-  if (anim.type === "none" || index !== CENTER_INDEX || anim.centerGrow === 1) {
+  if (anim.type === "none" || (!centerAnimated && !ringAnimated)) {
     return { a: 0, k: [100, 100] };
   }
 
+  const scaleAt = (u: number) => (isCenter ? centerScale(u, anim) : ringScale(u, anim));
   const total = cycleFrames(anim);
   const step = Math.max(1, Math.round(total / 60));
 
   const keys: Vec2Keyframe[] = [];
   for (let f = 0; f <= total; f += step) {
     if (f > total) break;
-    const pct = centerScale(f / total, anim) * 100;
+    const pct = scaleAt(f / total) * 100;
     keys.push({ t: f, s: [pct, pct], o: LINEAR_OUT, i: LINEAR_IN });
   }
   if (keys[keys.length - 1].t !== total) {
-    const pct = centerScale(1, anim) * 100;
+    const pct = scaleAt(1) * 100;
     keys.push({ t: total, s: [pct, pct], o: LINEAR_OUT, i: LINEAR_IN });
   }
   delete keys[keys.length - 1].o;

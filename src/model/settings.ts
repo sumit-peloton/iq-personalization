@@ -34,4 +34,5 @@ export const SPEED_RANGE = { min: 0.25, max: 3, step: 0.05 } as const;
 export const OVERSHOOT_RANGE = { min: 0, max: 1, step: 0.01 } as const;
 export const RUBBERBAND_RANGE = { min: 0, max: 1, step: 0.01 } as const;
 export const COLLAPSE_RANGE = { min: 0, max: 1, step: 0.01 } as const;
+export const RING_SHRINK_RANGE = { min: 0, max: 0.6, step: 0.05 } as const;
 export const CENTER_GROW_RANGE = { min: 1, max: 3, step: 0.05 } as const;

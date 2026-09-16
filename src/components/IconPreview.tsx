@@ -7,6 +7,7 @@ import {
   collapseProgress,
   collapsedPoint,
   cycleDuration,
+  ringScale,
 } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 
@@ -58,8 +59,11 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
     if (!active || i === CENTER_INDEX) return rest;
     return collapsedPoint(rest, center, c);
   });
-  // Only the center dot grows (during the hold beat); the rest stay dot-sized.
-  const scale = (i: number) => (active && i === CENTER_INDEX ? centerScale(u, anim) : 1);
+  // The center dot grows during the hold; the outer dots shrink as they collapse.
+  const scale = (i: number) => {
+    if (!active) return 1;
+    return i === CENTER_INDEX ? centerScale(u, anim) : ringScale(u, anim);
+  };
 
   return (
     <svg

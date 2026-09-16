@@ -24,10 +24,12 @@ export type AnimationSettings = {
   rubberband: number;
   /** How far the ring collapses toward center (1 = fully onto center dot). */
   collapse: number;
+  /** How much the outer dots shrink at full collapse (0 = none, 0.3 = 30% smaller). */
+  ringShrink: number;
+  /** Whether the center dot pulses (grows/shrinks) during the hold beat. */
+  centerGrowEnabled: boolean;
   /** Size multiplier the center dot grows to at full collapse (1 = no growth). */
   centerGrow: number;
-  /** Cubic-bezier timing curve for the center grow ramp (shrink mirrors it). */
-  centerEase: EaseCurve;
 };
 
 export const DEFAULT_ANIMATION: AnimationSettings = {
@@ -37,8 +39,9 @@ export const DEFAULT_ANIMATION: AnimationSettings = {
   overshoot: 0.25,
   rubberband: 0.3,
   collapse: 1,
+  ringShrink: 0.15,
+  centerGrowEnabled: true,
   centerGrow: 1.6,
-  centerEase: { x1: 0.5, y1: 0, x2: 0.5, y2: 1 },
 };
 
 export const ANIMATIONS: { value: AnimationType; label: string }[] = [
@@ -93,11 +96,14 @@ function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number
 
 // --- Core motion ---
 //
-// One cycle runs in four beats: collapse in -> center grows -> center shrinks
-// -> expand out. The ring holds fully collapsed through the two middle beats
-// while only the center dot pulses; then it springs back out.
-const COLLAPSE_END = 0.33; // ring is fully collapsed by here
-const HOLD_END = 0.67; // center grow+shrink pulse done by here; expand runs after
+// One continuous "breath": the ring rushes inward while the center swells to
+// receive it (both peak together at PEAK_TIME), then everything reverses and
+// expands back out together. A single normalized curve `breath(u)` drives all
+// three effects — ring position, ring shrink, and center grow — so they move as
+// one. The `ease` curve shapes the timing; with its default (0,0)->(1,1) slopes
+// at both ends the turnaround at the peak and the loop seam are velocity-smooth,
+// which is what makes it feel fluid rather than mechanical.
+const PEAK_TIME = 0.45; // fully collapsed / center fully grown by here; expand after
 
 /**
  * Smooth spring flourish (overshoot + rubberband) added on top of the expand.
@@ -118,44 +124,53 @@ function springExpand(y: number, anim: AnimationSettings): number {
 }
 
 /**
+ * The breath: 0 at rest, rising to 1 at full collapse (PEAK_TIME), back to 0 at
+ * the loop seam, dipping <0 as it springs outward past rest on the expand. This
+ * ONE curve is shared by the ring position, ring shrink, and center grow so the
+ * whole mark moves together. breath(0) === breath(1) === 0 → seamless loop.
+ */
+function breath(u: number, anim: AnimationSettings): number {
+  const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
+  if (u <= PEAK_TIME) {
+    return ease(u / PEAK_TIME); // 0 -> 1, collapse in as the center grows
+  }
+  const y = (u - PEAK_TIME) / (1 - PEAK_TIME);
+  return 1 - ease(y) + springExpand(y, anim); // 1 -> 0, expand out (with spring)
+}
+
+/**
  * Ring collapse amount at normalized cycle time u (0..1).
  *  0  = fully expanded (rest)
  *  1  = fully collapsed onto the center dot
  * <0  = sprung outward past rest (overshoot)
- *
- * Beats: collapse in over [0, COLLAPSE_END]; hold fully collapsed over
- * [COLLAPSE_END, HOLD_END] while the center pulses; expand out over
- * [HOLD_END, 1] (with the spring). Eased ends make each transition
- * velocity-smooth, and collapseProgress(0) === (1) === 0, so the loop is seamless.
  */
 export function collapseProgress(u: number, anim: AnimationSettings): number {
-  const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-
-  if (u <= COLLAPSE_END) {
-    return ease(u / COLLAPSE_END) * anim.collapse; // 0 -> 1, collapse in
-  }
-  if (u <= HOLD_END) {
-    return anim.collapse; // held fully collapsed while the center grows/shrinks
-  }
-  const y = (u - HOLD_END) / (1 - HOLD_END);
-  return (1 - ease(y) + springExpand(y, anim)) * anim.collapse; // 1 -> 0, expand out
+  return breath(u, anim) * anim.collapse;
 }
 
 /**
  * Scale multiplier for the center dot at normalized cycle time u. The center
- * holds its rest size (1) through the collapse and expand, and only grows —
- * up to anim.centerGrow and back — during the hold beat [COLLAPSE_END, HOLD_END],
- * i.e. once all the outer dots have collapsed into it. The grow ramp is shaped
- * by the centerEase curve; the shrink half is that same curve mirrored in time.
- * Shared by the preview and the Lottie exporter.
+ * grows in step with the breath — swelling up to anim.centerGrow as the ring
+ * collapses into it, and easing back to rest size as the ring expands out.
+ * Coupled to the SAME curve as the ring, so they peak and release together.
+ * Clamped at rest size so an overshoot past rest doesn't shrink it below 1.
  */
 export function centerScale(u: number, anim: AnimationSettings): number {
-  if (u <= COLLAPSE_END || u >= HOLD_END) return 1;
-  const h = (u - COLLAPSE_END) / (HOLD_END - COLLAPSE_END); // 0..1 across the hold
-  const ease = cubicBezier(anim.centerEase.x1, anim.centerEase.y1, anim.centerEase.x2, anim.centerEase.y2);
-  // First half grows 0->1 via the curve; second half shrinks 1->0 mirrored.
-  const pulse = h <= 0.5 ? ease(h / 0.5) : ease((1 - h) / 0.5);
-  return 1 + (anim.centerGrow - 1) * pulse;
+  if (!anim.centerGrowEnabled) return 1;
+  const b = Math.min(Math.max(breath(u, anim), 0), 1);
+  return 1 + (anim.centerGrow - 1) * b;
+}
+
+/**
+ * Scale multiplier for an OUTER (ring) dot at cycle time u. The ring dots shrink
+ * as they collapse inward — down to (1 - ringShrink) at full collapse — and grow
+ * back to rest size as they expand, driven by the same breath as their position
+ * so the shrink follows the exact same motion. Shared by preview and export.
+ */
+export function ringScale(u: number, anim: AnimationSettings): number {
+  if (anim.ringShrink <= 0) return 1;
+  const b = Math.min(Math.max(breath(u, anim), 0), 1); // clamp so overshoot doesn't enlarge
+  return 1 - anim.ringShrink * b;
 }
 
 /** Linear interpolate a point from rest toward center by amount c. */
