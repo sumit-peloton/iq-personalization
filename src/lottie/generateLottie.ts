@@ -20,10 +20,12 @@ import {
   CENTER_INDEX,
   FPS,
   centerScale,
+  clockwiseTarget,
   collapseProgress,
   collapsedPoint,
   cycleFrames,
   ringScale,
+  rotateProgress,
 } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 import type {
@@ -163,6 +165,27 @@ function dotPosition(index: number, s: GlowSettings): Vec2Prop {
     return { a: 0, k: [rest.x, rest.y] };
   }
 
+  // --- Rotate clockwise: each outer dot glides to the next clockwise position ---
+  if (anim.type === "rotate-clockwise") {
+    const target = toCanvas(DOTS[clockwiseTarget(index)]);
+    const total = cycleFrames(anim);
+    const step = Math.max(1, Math.round(total / 60));
+    const keys: Vec2Keyframe[] = [];
+    for (let f = 0; f <= total; f += step) {
+      if (f > total) break;
+      const rp = rotateProgress(f / total, anim);
+      keys.push({ t: f, s: [rest.x + (target.x - rest.x) * rp, rest.y + (target.y - rest.y) * rp], o: LINEAR_OUT, i: LINEAR_IN });
+    }
+    if (keys[keys.length - 1].t !== total) {
+      const rp = rotateProgress(1, anim);
+      keys.push({ t: total, s: [rest.x + (target.x - rest.x) * rp, rest.y + (target.y - rest.y) * rp], o: LINEAR_OUT, i: LINEAR_IN });
+    }
+    delete keys[keys.length - 1].o;
+    delete keys[keys.length - 1].i;
+    return { a: 1, k: keys };
+  }
+
+  // --- Collapse/expand ---
   const center = toCanvas(DOTS[CENTER_INDEX]);
   const total = cycleFrames(anim);
   // Cap keyframe count for a lean file; dense enough to capture the spring.
@@ -199,8 +222,10 @@ function dotPosition(index: number, s: GlowSettings): Vec2Prop {
 function dotScale(index: number, s: GlowSettings): Vec2Prop {
   const anim = s.animation;
   const isCenter = index === CENTER_INDEX;
-  const centerAnimated = isCenter && anim.centerGrowEnabled && anim.centerGrow !== 1;
-  const ringAnimated = !isCenter && anim.ringShrink > 0 && anim.collapse > 0;
+  const centerAnimated = isCenter && anim.centerGrowEnabled && anim.centerGrow !== 1
+    && anim.type !== "rotate-clockwise";
+  const ringAnimated = !isCenter && anim.ringShrink > 0 && anim.collapse > 0
+    && anim.type !== "rotate-clockwise";
 
   if (anim.type === "none" || (!centerAnimated && !ringAnimated)) {
     return { a: 0, k: [100, 100] };

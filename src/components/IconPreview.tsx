@@ -4,10 +4,12 @@ import { dotColor, haloRadius, haloStops } from "../model/geometry";
 import {
   CENTER_INDEX,
   centerScale,
+  clockwiseTarget,
   collapseProgress,
   collapsedPoint,
   cycleDuration,
   ringScale,
+  rotateProgress,
 } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 
@@ -50,17 +52,23 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
 
   const anim = settings.animation;
   const active = anim.type !== "none";
+  const isRotate = anim.type === "rotate-clockwise";
   // Preview-only: stretch the cycle so more frames are visible; export unaffected.
   const u = useCycleProgress(active, cycleDuration(anim) * (slowMo ? 2 : 1));
-  const c = active ? collapseProgress(u, anim) : 0;
 
   const center = toCanvas(DOTS[CENTER_INDEX]);
   const positions = DOTS.map((p, i) => {
     const rest = toCanvas(p);
     if (!active || i === CENTER_INDEX) return rest;
-    return collapsedPoint(rest, center, c);
+    if (isRotate) {
+      // Each outer dot glides straight to the next clockwise neighbor's position.
+      const target = toCanvas(DOTS[clockwiseTarget(i)]);
+      const rp = rotateProgress(u, anim);
+      return { x: rest.x + (target.x - rest.x) * rp, y: rest.y + (target.y - rest.y) * rp };
+    }
+    return collapsedPoint(rest, center, collapseProgress(u, anim));
   });
-  // The center dot grows during the hold; the outer dots shrink as they collapse.
+  // Center grows during collapse; outer dots shrink as they collapse (not during rotate).
   const scale = (i: number) => {
     if (!active) return 1;
     return i === CENTER_INDEX ? centerScale(u, anim) : ringScale(u, anim);

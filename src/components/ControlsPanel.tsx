@@ -28,6 +28,7 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
   const on = settings.glowEnabled;
   const anim = settings.animation;
   const animOn = anim.type !== "none";
+  const isRotate = anim.type === "rotate-clockwise";
 
   return (
     <div className="controls">
@@ -123,62 +124,66 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
             <span>Curve</span>
             <CurveEditor value={anim.ease} onChange={(ease) => patchAnim({ ease })} />
           </div>
-          <Slider
-            label="Overshoot"
-            value={anim.overshoot}
-            min={OVERSHOOT_RANGE.min}
-            max={OVERSHOOT_RANGE.max}
-            step={OVERSHOOT_RANGE.step}
-            onChange={(overshoot) => patchAnim({ overshoot })}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-          <Slider
-            label="Rubberband"
-            value={anim.rubberband}
-            min={RUBBERBAND_RANGE.min}
-            max={RUBBERBAND_RANGE.max}
-            step={RUBBERBAND_RANGE.step}
-            onChange={(rubberband) => patchAnim({ rubberband })}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-          <Slider
-            label="Collapse"
-            value={anim.collapse}
-            min={COLLAPSE_RANGE.min}
-            max={COLLAPSE_RANGE.max}
-            step={COLLAPSE_RANGE.step}
-            onChange={(collapse) => patchAnim({ collapse })}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-          <Slider
-            label="Ring Shrink"
-            value={anim.ringShrink}
-            min={RING_SHRINK_RANGE.min}
-            max={RING_SHRINK_RANGE.max}
-            step={RING_SHRINK_RANGE.step}
-            onChange={(ringShrink) => patchAnim({ ringShrink })}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={anim.centerGrowEnabled}
-              onChange={(e) => patchAnim({ centerGrowEnabled: e.target.checked })}
-            />
-            <span>Center Grow</span>
-          </label>
-          <div className={`group${anim.centerGrowEnabled ? "" : " group-disabled"}`}>
+          {!isRotate && <>
             <Slider
-              label="Size"
-              value={anim.centerGrow}
-              min={CENTER_GROW_RANGE.min}
-              max={CENTER_GROW_RANGE.max}
-              step={CENTER_GROW_RANGE.step}
-              disabled={!anim.centerGrowEnabled}
-              onChange={(centerGrow) => patchAnim({ centerGrow })}
-              format={(v) => `${v.toFixed(2)}×`}
+              label="Overshoot"
+              value={anim.overshoot}
+              min={OVERSHOOT_RANGE.min}
+              max={OVERSHOOT_RANGE.max}
+              step={OVERSHOOT_RANGE.step}
+              onChange={(overshoot) => patchAnim({ overshoot })}
+              format={(v) => `${Math.round(v * 100)}%`}
             />
-          </div>
+            <Slider
+              label="Rubberband"
+              value={anim.rubberband}
+              min={RUBBERBAND_RANGE.min}
+              max={RUBBERBAND_RANGE.max}
+              step={RUBBERBAND_RANGE.step}
+              onChange={(rubberband) => patchAnim({ rubberband })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </>}
+          {!isRotate && <>
+            <Slider
+              label="Collapse"
+              value={anim.collapse}
+              min={COLLAPSE_RANGE.min}
+              max={COLLAPSE_RANGE.max}
+              step={COLLAPSE_RANGE.step}
+              onChange={(collapse) => patchAnim({ collapse })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <Slider
+              label="Ring Shrink"
+              value={anim.ringShrink}
+              min={RING_SHRINK_RANGE.min}
+              max={RING_SHRINK_RANGE.max}
+              step={RING_SHRINK_RANGE.step}
+              onChange={(ringShrink) => patchAnim({ ringShrink })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={anim.centerGrowEnabled}
+                onChange={(e) => patchAnim({ centerGrowEnabled: e.target.checked })}
+              />
+              <span>Center Grow</span>
+            </label>
+            <div className={`group${anim.centerGrowEnabled ? "" : " group-disabled"}`}>
+              <Slider
+                label="Size"
+                value={anim.centerGrow}
+                min={CENTER_GROW_RANGE.min}
+                max={CENTER_GROW_RANGE.max}
+                step={CENTER_GROW_RANGE.step}
+                disabled={!anim.centerGrowEnabled}
+                onChange={(centerGrow) => patchAnim({ centerGrow })}
+                format={(v) => `${v.toFixed(2)}×`}
+              />
+            </div>
+          </>}
         </div>
       )}
     </div>

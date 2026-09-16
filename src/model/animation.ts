@@ -3,7 +3,7 @@
 // cycle time u (0..1). The live SVG preview samples it every frame via rAF, and
 // the Lottie exporter bakes it into position keyframes — so preview == export.
 
-export type AnimationType = "none" | "thinking-pulse";
+export type AnimationType = "none" | "thinking-pulse" | "rotate-clockwise";
 
 /**
  * The two control points of a cubic-bezier easing curve, as edited by the
@@ -47,10 +47,36 @@ export const DEFAULT_ANIMATION: AnimationSettings = {
 export const ANIMATIONS: { value: AnimationType; label: string }[] = [
   { value: "none", label: "None" },
   { value: "thinking-pulse", label: "Thinking / Pulse" },
+  { value: "rotate-clockwise", label: "Rotate Clockwise" },
 ];
 
 /** Index of the center dot in DOTS (the one the ring collapses onto). */
 export const CENTER_INDEX = 3;
+
+/**
+ * Outer dot indices in clockwise order (sorted by angle from center).
+ * Used by the rotate-clockwise animation to determine which position
+ * each dot travels to.
+ *
+ * Angular positions (screen coords, 0°=right, clockwise):
+ *   Dot 5 → 63.4°  (lower-right)
+ *   Dot 4 → 116.6° (lower-left)
+ *   Dot 1 → 206.6° (upper-left)
+ *   Dot 0 → 270.0° (top)
+ *   Dot 2 → 333.4° (upper-right)
+ */
+export const OUTER_CLOCKWISE: readonly number[] = [5, 4, 1, 0, 2];
+
+// Each outer dot's "next" position in the clockwise rotation.
+const CW_NEXT: Readonly<Record<number, number>> = { 5: 4, 4: 1, 1: 0, 0: 2, 2: 5 };
+
+/**
+ * Returns the dot index whose resting position the given outer dot travels
+ * toward during one clockwise rotation step.
+ */
+export function clockwiseTarget(index: number): number {
+  return CW_NEXT[index] ?? index;
+}
 
 /** Frame rate used for the Lottie timeline and keyframe baking. */
 export const FPS = 60;
@@ -65,6 +91,21 @@ export function cycleDuration(anim: AnimationSettings): number {
 /** Number of frames in one cycle on the Lottie timeline. */
 export function cycleFrames(anim: AnimationSettings): number {
   return Math.max(2, Math.round(cycleDuration(anim) * FPS));
+}
+
+// Fraction of the rotate cycle spent moving; the rest is a hold at the target
+// so each position feels "settled" before the next step begins.
+const ROTATE_MOVE_FRAC = 0.7;
+
+/**
+ * Clockwise rotation progress 0→1 for one swap-step at normalized cycle time u.
+ * The dots ease into the next position over ROTATE_MOVE_FRAC of the cycle, then
+ * hold there. Since all outer dots are identical, the loop-reset snap is invisible.
+ */
+export function rotateProgress(u: number, anim: AnimationSettings): number {
+  const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
+  if (u <= ROTATE_MOVE_FRAC) return ease(u / ROTATE_MOVE_FRAC);
+  return 1; // hold at target until next cycle
 }
 
 // --- Easing helpers ---
@@ -145,6 +186,7 @@ function breath(u: number, anim: AnimationSettings): number {
  * <0  = sprung outward past rest (overshoot)
  */
 export function collapseProgress(u: number, anim: AnimationSettings): number {
+  if (anim.type === "rotate-clockwise") return 0;
   return breath(u, anim) * anim.collapse;
 }
 
@@ -156,7 +198,7 @@ export function collapseProgress(u: number, anim: AnimationSettings): number {
  * Clamped at rest size so an overshoot past rest doesn't shrink it below 1.
  */
 export function centerScale(u: number, anim: AnimationSettings): number {
-  if (!anim.centerGrowEnabled) return 1;
+  if (!anim.centerGrowEnabled || anim.type === "rotate-clockwise") return 1;
   const b = Math.min(Math.max(breath(u, anim), 0), 1);
   return 1 + (anim.centerGrow - 1) * b;
 }
