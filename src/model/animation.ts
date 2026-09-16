@@ -32,6 +32,8 @@ export type AnimationSettings = {
   centerGrow: number;
   /** Rotate only: mirror the outer dots' shrink pulse on the center dot too. */
   centerMatchRing: boolean;
+  /** Rotate only: fraction of each cycle spent holding at the target (0 = continuous). */
+  rotateHold: number;
 };
 
 export const DEFAULT_ANIMATION: AnimationSettings = {
@@ -45,6 +47,7 @@ export const DEFAULT_ANIMATION: AnimationSettings = {
   centerGrowEnabled: true,
   centerGrow: 1.6,
   centerMatchRing: false,
+  rotateHold: 0,
 };
 
 export const ANIMATIONS: { value: AnimationType; label: string }[] = [
@@ -114,27 +117,32 @@ function rotateSpring(u: number, anim: AnimationSettings): number {
 }
 
 /**
- * Position progress for one clockwise swap-step. Uses the full cycle with no
- * hold — the ease curve shapes acceleration and the spring adds an elastic
- * landing at the target so the animation reads as continuous rather than
- * step-pause-step. Progress can briefly exceed 1 (overshoot past target) but
- * returns to exactly 1 at u=1 for a seamless loop.
+ * Position progress for one clockwise swap-step. The move phase covers
+ * [0, 1-rotateHold] of the cycle; the remaining hold fraction the dot sits
+ * at the target. Within the move phase, the ease curve shapes acceleration and
+ * the spring adds an elastic landing. Progress can briefly exceed 1 (overshoot)
+ * but is exactly 1 at the end of the move phase and throughout the hold, so
+ * the loop boundary is seamless.
  */
 export function rotateProgress(u: number, anim: AnimationSettings): number {
   const ease = cubicBezier(anim.ease.x1, anim.ease.y1, anim.ease.x2, anim.ease.y2);
-  return ease(u) + rotateSpring(u, anim);
+  const moveFrac = Math.max(1 - (anim.rotateHold ?? 0), 0.05); // at least 5% for move
+  if (u >= moveFrac) return 1; // hold at destination
+  const t = u / moveFrac; // normalised 0→1 within the move window
+  return ease(t) + rotateSpring(t, anim);
 }
 
 /**
  * Scale pulse for an outer dot during the clockwise rotation. The dot shrinks
  * mid-travel and grows back on arrival, giving visible shrink → move → grow
- * phases that overlap continuously. The symmetric sin(πu) envelope is zero at
- * the loop boundaries (full size at rest and at arrival), so the loop is
- * seamless. ringShrink controls the depth of the dip.
+ * phases that overlap continuously. The pulse is normalised to the move window
+ * so the dot is at full size throughout any hold. ringShrink controls the dip.
  */
 export function ringRotateScale(u: number, anim: AnimationSettings): number {
   if (anim.ringShrink <= 0) return 1;
-  return 1 - anim.ringShrink * Math.sin(Math.PI * u);
+  const moveFrac = Math.max(1 - (anim.rotateHold ?? 0), 0.05);
+  const t = Math.min(u / moveFrac, 1); // clamped: hold phase keeps t=1 → scale=1
+  return 1 - anim.ringShrink * Math.sin(Math.PI * t);
 }
 
 // --- Easing helpers ---

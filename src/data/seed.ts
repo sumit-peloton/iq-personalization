@@ -111,5 +111,6 @@ export const SEED_TUNINGS: Partial<Record<AnimationType, AnimationSettings>> = {
     centerGrowEnabled: true,
     centerGrow: 1.1,
     centerMatchRing: false,
+    rotateHold: 0,
   },
 };

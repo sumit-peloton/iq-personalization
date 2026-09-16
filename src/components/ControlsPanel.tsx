@@ -8,6 +8,7 @@ import {
   OVERSHOOT_RANGE,
   RADIUS_RANGE,
   RING_SHRINK_RANGE,
+  ROTATE_HOLD_RANGE,
   RUBBERBAND_RANGE,
   SPEED_RANGE,
   type GlowSettings,
@@ -151,7 +152,7 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
             onChange={(ringShrink) => patchAnim({ ringShrink })}
             format={(v) => `${Math.round(v * 100)}%`}
           />
-          {isRotate && (
+          {isRotate && (<>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -160,7 +161,16 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
               />
               <span>Center Matches</span>
             </label>
-          )}
+            <Slider
+              label="Hold"
+              value={anim.rotateHold}
+              min={ROTATE_HOLD_RANGE.min}
+              max={ROTATE_HOLD_RANGE.max}
+              step={ROTATE_HOLD_RANGE.step}
+              onChange={(rotateHold) => patchAnim({ rotateHold })}
+              format={(v) => v === 0 ? "None" : `${Math.round(v * 100)}%`}
+            />
+          </>)}
           {!isRotate && <>
             <Slider
               label="Collapse"
