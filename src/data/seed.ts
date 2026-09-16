@@ -113,4 +113,17 @@ export const SEED_TUNINGS: Partial<Record<AnimationType, AnimationSettings>> = {
     centerMatchRing: false,
     rotateHold: false,
   },
+  "rotate-clockwise": {
+    type: "rotate-clockwise",
+    speed: 1.45,
+    ease: { x1: 0.34, y1: 0.58, x2: 0.82, y2: 0.49 },
+    overshoot: 0.05,
+    rubberband: 0.09,
+    collapse: 1,
+    ringShrink: 0.05,
+    centerGrowEnabled: true,
+    centerGrow: 1.6,
+    centerMatchRing: true,
+    rotateHold: false,
+  },
 };
