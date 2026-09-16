@@ -153,6 +153,16 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
             onChange={(ringShrink) => patchAnim({ ringShrink })}
             format={(v) => `${Math.round(v * 100)}%`}
           />
+          {isRotate && (
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={anim.centerMatchRing}
+                onChange={(e) => patchAnim({ centerMatchRing: e.target.checked })}
+              />
+              <span>Center Matches</span>
+            </label>
+          )}
           {!isRotate && <>
             <Slider
               label="Collapse"

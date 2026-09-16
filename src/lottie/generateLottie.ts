@@ -223,8 +223,10 @@ function dotPosition(index: number, s: GlowSettings): Vec2Prop {
 function dotScale(index: number, s: GlowSettings): Vec2Prop {
   const anim = s.animation;
   const isCenter = index === CENTER_INDEX;
-  const centerAnimated = isCenter && anim.centerGrowEnabled && anim.centerGrow !== 1
-    && anim.type !== "rotate-clockwise";
+  const centerAnimated = isCenter && (
+    (anim.type === "rotate-clockwise" && anim.centerMatchRing && anim.ringShrink > 0) ||
+    (anim.type !== "rotate-clockwise" && anim.centerGrowEnabled && anim.centerGrow !== 1)
+  );
   const ringRotateAnimated = !isCenter && anim.type === "rotate-clockwise" && anim.ringShrink > 0;
   const ringAnimated = !isCenter && anim.ringShrink > 0 && anim.collapse > 0
     && anim.type !== "rotate-clockwise";

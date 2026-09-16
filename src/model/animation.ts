@@ -30,6 +30,8 @@ export type AnimationSettings = {
   centerGrowEnabled: boolean;
   /** Size multiplier the center dot grows to at full collapse (1 = no growth). */
   centerGrow: number;
+  /** Rotate only: mirror the outer dots' shrink pulse on the center dot too. */
+  centerMatchRing: boolean;
 };
 
 export const DEFAULT_ANIMATION: AnimationSettings = {
@@ -42,6 +44,7 @@ export const DEFAULT_ANIMATION: AnimationSettings = {
   ringShrink: 0.15,
   centerGrowEnabled: true,
   centerGrow: 1.6,
+  centerMatchRing: false,
 };
 
 export const ANIMATIONS: { value: AnimationType; label: string }[] = [
@@ -206,7 +209,10 @@ export function collapseProgress(u: number, anim: AnimationSettings): number {
  * Clamped at rest size so an overshoot past rest doesn't shrink it below 1.
  */
 export function centerScale(u: number, anim: AnimationSettings): number {
-  if (!anim.centerGrowEnabled || anim.type === "rotate-clockwise") return 1;
+  if (anim.type === "rotate-clockwise") {
+    return anim.centerMatchRing ? ringRotateScale(u, anim) : 1;
+  }
+  if (!anim.centerGrowEnabled) return 1;
   const b = Math.min(Math.max(breath(u, anim), 0), 1);
   return 1 + (anim.centerGrow - 1) * b;
 }
