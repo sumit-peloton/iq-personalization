@@ -1,8 +1,8 @@
 <svg width="61" height="61" viewBox="0 0 61 61" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="30.24" cy="7.84" r="6.72" fill="white" stroke="white" stroke-width="2.24"/>
-<circle cx="7.84" cy="19.04" r="6.72" fill="white" stroke="white" stroke-width="2.24"/>
-<circle cx="52.64" cy="19.04" r="6.72" fill="white" stroke="white" stroke-width="2.24"/>
-<circle cx="30.24" cy="30.24" r="6.72" fill="white" stroke="white" stroke-width="2.24"/>
-<circle cx="19.04" cy="52.64" r="6.72" fill="white" stroke="white" stroke-width="2.24"/>
-<circle cx="41.44" cy="52.64" r="6.72" fill="white" stroke="white" stroke-width="2.24"/>
+<circle cx="30.24" cy="7.84" r="6.72" fill="black" stroke="black" stroke-width="2.24"/>
+<circle cx="7.84" cy="19.04" r="6.72" fill="black" stroke="black" stroke-width="2.24"/>
+<circle cx="52.64" cy="19.04" r="6.72" fill="black" stroke="black" stroke-width="2.24"/>
+<circle cx="30.24" cy="30.24" r="6.72" fill="black" stroke="black" stroke-width="2.24"/>
+<circle cx="19.04" cy="52.64" r="6.72" fill="black" stroke="black" stroke-width="2.24"/>
+<circle cx="41.44" cy="52.64" r="6.72" fill="black" stroke="black" stroke-width="2.24"/>
 </svg>
