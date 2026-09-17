@@ -18,7 +18,7 @@
 import { CANVAS, DOTS, DOT_R, toCanvas } from "../model/dots";
 import { dotColor, haloRadius, haloStops } from "../model/geometry";
 import { hexToRgb01, mixHex } from "../model/color";
-import { FPS, MOTION, cycleFrames } from "../model/animation";
+import { FPS, MOTION, cycleFrames, dotScaleXY, haloBoost } from "../model/animation";
 import type { AnimationSettings, DotSample } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 import type {
@@ -266,11 +266,13 @@ function positionProp(index: number, s: GlowSettings, cyc: DotCycle): Vec2Prop {
 function scaleProp(_index: number, s: GlowSettings, cyc: DotCycle): Vec2Prop {
   const anim = s.animation;
   if (anim.type === "none" || !MOTION[anim.type].animates.scale) return STATIC_SCALE;
+  // dotScaleXY resolves scale + squash into [x, y] percentages (non-uniform when
+  // the state applies squash & stretch); vec2Prop collapses it if it never varies.
   return vec2Prop(
     cyc.times,
     cyc.samples.map((sd) => {
-      const pct = sd.scale * 100;
-      return [pct, pct];
+      const [sx, sy] = dotScaleXY(sd);
+      return [sx * 100, sy * 100];
     }),
   );
 }
@@ -293,9 +295,9 @@ function fillColorProp(_index: number, s: GlowSettings, cyc: DotCycle): ColorPro
   return colorProp(cyc.times, vals);
 }
 
-/** Pack one gradient-stop array at a given color-shift amount (colors shift; alphas are static). */
-function packGradient(s: GlowSettings, glowHex: string): { p: number; flat: number[] } {
-  const stops = haloStops(s);
+/** Pack one gradient-stop array at a given color + brightness boost (colors and alphas may both shift). */
+function packGradient(s: GlowSettings, glowHex: string, boost = 1): { p: number; flat: number[] } {
+  const stops = haloStops(s, { boost });
   const { r, g, b } = hexToRgb01(glowHex);
   const colorFlat = stops.flatMap((st) => [st.offset, r, g, b]);
   const alphaFlat = stops.flatMap((st) => [st.offset, st.opacity]);
@@ -309,11 +311,16 @@ function staticGradientArray(s: GlowSettings): { p: number; k: GradientArrayProp
 
 function haloGradient(_index: number, s: GlowSettings, cyc: DotCycle): { p: number; k: GradientArrayProp } {
   const anim = s.animation;
-  if (anim.type === "none" || !MOTION[anim.type].animates.color) return staticGradientArray(s);
+  const model = MOTION[anim.type];
+  // The halo gradient animates when color shifts (stop colors) OR when the glow
+  // is coupled to effort (stop alphas). gradientArrayProp collapses it otherwise.
+  if (anim.type === "none" || (!model.animates.color && !model.animates.glow)) {
+    return staticGradientArray(s);
+  }
   const p = packGradient(s, s.glowColor).p;
   const vals = cyc.samples.map((sd) => {
     const glow = sd.colorMix > 0 ? mixHex(s.glowColor, anim.alertColor, sd.colorMix) : s.glowColor;
-    return packGradient(s, glow).flat;
+    return packGradient(s, glow, haloBoost(sd)).flat;
   });
   return { p, k: gradientArrayProp(cyc.times, vals) };
 }

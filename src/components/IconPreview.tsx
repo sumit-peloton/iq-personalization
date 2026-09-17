@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CANVAS, DOTS, DOT_R } from "../model/dots";
 import { dotColor, haloRadius, haloStops } from "../model/geometry";
 import { mixHex } from "../model/color";
-import { MOTION, cycleDuration } from "../model/animation";
+import { MOTION, cycleDuration, dotScaleXY, haloBoost } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 
 type Props = { settings: GlowSettings; slowMo?: boolean };
@@ -52,8 +52,20 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
 
   // Per-dot color shift toward alertColor (0 = base color for that dot).
   const dotFillOf = (mix: number) => (mix > 0 ? mixHex(dotFill, anim.alertColor, mix) : dotFill);
-  const stopsOf = (mix: number) =>
-    haloStops(settings, mix > 0 ? { color: mixHex(settings.glowColor, anim.alertColor, mix) } : undefined);
+  const stopsOf = (mix: number, boost: number) =>
+    haloStops(settings, {
+      color: mix > 0 ? mixHex(settings.glowColor, anim.alertColor, mix) : undefined,
+      boost,
+    });
+
+  // Each dot/halo is drawn at the local origin inside a group that translates to
+  // the dot's position and scales by [x, y]. This mirrors the Lottie group
+  // transform exactly — so squash & stretch (non-uniform scale) render the same
+  // in the preview as in the export.
+  const xf = (sd: (typeof samples)[number]) => {
+    const [sx, sy] = dotScaleXY(sd);
+    return `translate(${sd.pos.x} ${sd.pos.y}) scale(${sx} ${sy})`;
+  };
 
   return (
     <svg
@@ -70,11 +82,11 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
               key={i}
               id={`halo-${i}`}
               gradientUnits="userSpaceOnUse"
-              cx={sd.pos.x}
-              cy={sd.pos.y}
-              r={r * sd.scale}
+              cx={0}
+              cy={0}
+              r={r}
             >
-              {stopsOf(sd.colorMix).map((stop, j) => (
+              {stopsOf(sd.colorMix, haloBoost(sd)).map((stop, j) => (
                 <stop
                   key={j}
                   offset={stop.offset}
@@ -89,26 +101,22 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
       {/* Halos (behind) */}
       {showGlow &&
         samples.map((sd, i) => (
-          <circle
-            key={`halo-${i}`}
-            cx={sd.pos.x}
-            cy={sd.pos.y}
-            r={r * sd.scale}
-            fill={`url(#halo-${i})`}
-            opacity={sd.opacity}
-          />
+          <g key={`halo-${i}`} transform={xf(sd)}>
+            <circle cx={0} cy={0} r={r} fill={`url(#halo-${i})`} opacity={sd.opacity} />
+          </g>
         ))}
 
       {/* Solid dots (front) — tinted toward the glow color when glow is on */}
       {samples.map((sd, i) => (
-        <circle
-          key={`dot-${i}`}
-          cx={sd.pos.x}
-          cy={sd.pos.y}
-          r={DOT_R * sd.scale}
-          fill={dotFillOf(sd.colorMix)}
-          fillOpacity={sd.opacity}
-        />
+        <g key={`dot-${i}`} transform={xf(sd)}>
+          <circle
+            cx={0}
+            cy={0}
+            r={DOT_R}
+            fill={dotFillOf(sd.colorMix)}
+            fillOpacity={sd.opacity}
+          />
+        </g>
       ))}
     </svg>
   );

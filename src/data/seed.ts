@@ -119,10 +119,10 @@ export const SEED_TUNINGS: Partial<Record<AnimationType, AnimationSettings>> = {
   },
   "rotate-clockwise": {
     type: "rotate-clockwise",
-    speed: 1.45,
-    ease: { x1: 0.34, y1: 0.58, x2: 0.82, y2: 0.49 },
+    speed: 1.15,
+    ease: { x1: 0.25, y1: 0.56, x2: 0.86, y2: 0.51 },
     overshoot: 0.05,
-    rubberband: 0.09,
+    rubberband: 0.37,
     collapse: 1,
     ringShrink: 0.05,
     centerGrowEnabled: true,

@@ -383,27 +383,52 @@ export function dotU(u: number, index: number, anim: AnimationSettings): number 
 export type DotSample = {
   /** Canvas-space position (already toCanvas'd). */
   pos: { x: number; y: number };
-  /** Scale multiplier (1 = rest). */
+  /** Scale multiplier (1 = rest). Uniform unless `squash` is set. */
   scale: number;
   /** Opacity multiplier 0..1 (1 = full). Multiplies both the dot fill and its halo. */
   opacity: number;
   /** How far this dot's color has shifted toward anim.alertColor (0 = base). */
   colorMix: number;
+  /**
+   * Signed squash & stretch (default 0). >0 = stretched taller and narrower,
+   * <0 = squashed shorter and wider. Rides the scale channel via dotScaleXY.
+   */
+  squash?: number;
+  /**
+   * Glow-intensity boost for effort coupling (default 0). >0 brightens this
+   * dot's halo (a bloom), leaving the solid dot untouched.
+   */
+  glow?: number;
 };
 
 /**
  * A motion type's behaviour, expressed as a pure per-dot sampler. `animates`
  * declares which channels this type ever moves, so the Lottie baker can keep
  * emitting cheap static props for the rest (and a channel that samples constant
- * is collapsed to a static prop anyway — see generateLottie).
+ * is collapsed to a static prop anyway — see generateLottie). `glow` is optional
+ * (defaults false); squash rides the scale channel so it needs no separate flag.
  */
 export type MotionModel = {
-  animates: { pos: boolean; scale: boolean; opacity: boolean; color: boolean };
+  animates: { pos: boolean; scale: boolean; opacity: boolean; color: boolean; glow?: boolean };
   sample(u: number, index: number, anim: AnimationSettings): DotSample;
 };
 
 function restSample(index: number): DotSample {
   return { pos: toCanvas(DOTS[index]), scale: 1, opacity: 1, colorMix: 0 };
+}
+
+/** Gain from a sample's `glow` boost to a halo-intensity multiplier (clamped in haloStops). */
+const GLOW_GAIN = 1.2;
+
+/** Per-dot scale resolved into [x, y] fractions, applying squash & stretch. */
+export function dotScaleXY(sd: DotSample): [number, number] {
+  const q = sd.squash ?? 0;
+  return [sd.scale * (1 - q), sd.scale * (1 + q)];
+}
+
+/** Halo brightness multiplier for a sample's effort `glow` (1 = base). */
+export function haloBoost(sd: DotSample): number {
+  return 1 + GLOW_GAIN * (sd.glow ?? 0);
 }
 
 // --- Shared envelopes for the new states (all seam-clean: value AND velocity
@@ -493,6 +518,20 @@ function outwardX(rest: { x: number }): number {
 }
 
 /**
+ * Travel along an ARC toward a target displacement (tx, ty) by fraction r, bowing
+ * `bow` px perpendicular to the straight line. The bow is sin(π·r) — 0 at r=0 and
+ * r=1 — so limbs sweep on a curve but still hit rest and the pose exactly, and the
+ * whole thing stays seam-clean when r is (r'=0 at the seam ⇒ the bow's slope is 0
+ * there too). Positive bow curves toward the (−ty, tx) side; flip the sign to bow
+ * the other way.
+ */
+function arc(tx: number, ty: number, r: number, bow: number): { dx: number; dy: number } {
+  const len = Math.hypot(tx, ty) || 1;
+  const b = bow * Math.sin(Math.PI * r);
+  return { dx: tx * r + (-ty / len) * b, dy: ty * r + (tx / len) * b };
+}
+
+/**
  * Shared clockwise-rotation sampler. Used by both "rotate-clockwise" and
  * "syncing" (syncing is just a slow rotate). Computes the center scale directly
  * so it doesn't depend on the animation type.
@@ -515,15 +554,26 @@ function rotateSample(u: number, index: number, anim: AnimationSettings): DotSam
 
 // Character-move amplitudes (px unless noted). Tuned against the ~22px torso→head
 // distance: idle is a few px; expressive states swing 5–10px.
-const CELEB_JUMP = 10; // hop height
-const CELEB_ARM_RAISE = 9; // arms thrown up
-const CELEB_ARM_OUT = 4; // arms out into a V
-const CELEB_LEG_TUCK = 5; // feet tuck up mid-air
-const CELEB_POP = 0.12; // scale pop at the apex
+const CELEB_JUMP = 9; // hop height
+const CELEB_ARM_RAISE = 8; // arms thrown up
+const CELEB_ARM_OUT = 3; // arms out into a V
+const CELEB_ARM_BOW = 1; // barely-there arm curve — enough to read as a sweep, not a flail
+const CELEB_LEG_TUCK = 4; // feet tuck up mid-air
+const CELEB_LEG_BOW = 0.5; // barely-there leg curve
+const CELEB_POP = 0.09; // scale pop at the apex
+const CELEB_STRETCH = 0; // no dot-deformation — squashing the round dots reads cartoonish on this mark
+const CELEB_SQUASH = 0; // same; life comes from follow-through + arc + pop/glow instead
+const CELEB_GLOW = 0.75; // halo bloom at the apex
+const CELEB_DRAG_HEAD = 0.02; // slight follow-through so the leap isn't rigid
+const CELEB_DRAG_ARM = 0.03; // arms trail a touch more
 
 const ENC_ARM_PUMP = 8; // fist-pump travel
 const ENC_BODY_BOUNCE = 2.5; // body bounces with each pump
 const ENC_POP = 0.06; // body scale bump per pump
+const ENC_SQUASH = 0.04; // body squashes down as the arms punch up (subtle)
+const ENC_GLOW = 0.7; // halo pulses with each pump
+
+const HEART_GLOW = 0.9; // halo brightens on each beat
 
 const MARCH_LIFT = 5; // foot lift height
 const MARCH_ARM = 3; // opposite-arm swing
@@ -533,8 +583,10 @@ const HEART_SYMPATHY = 2.5; // head/limbs pulse outward on each beat
 
 const SUCCESS_ARM_RAISE = 8; // arms up into a held V
 const SUCCESS_ARM_OUT = 3.5;
+const SUCCESS_ARM_BOW = 3; // arc bow on the arm raise
 const SUCCESS_LIFT = 2; // torso/head lift while holding
 const SUCCESS_POP = 0.05;
+const SUCCESS_GLOW = 0.8; // halo blooms while the pose is held
 
 const ALERT_SHUDDER = 3; // horizontal flinch travel
 const ALERT_LEG_ROOT = 0.3; // legs shudder less (planted)
@@ -648,12 +700,12 @@ export const MOTION: Record<AnimationType, MotionModel> = {
   // a small sympathetic pulse OUTWARD on each beat, so the whole figure feels the
   // heartbeat rather than one dot pulsing alone.
   heartbeat: {
-    animates: { pos: true, scale: true, opacity: false, color: false },
+    animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
     sample: (u, index, anim) => {
       const rest = toCanvas(DOTS[index]);
       const beat = doubleThump(u);
       if (index === BODY_INDEX) {
-        return { pos: rest, scale: 1 + (anim.centerGrow - 1) * beat, opacity: 1, colorMix: 0 };
+        return { pos: rest, scale: 1 + (anim.centerGrow - 1) * beat, opacity: 1, colorMix: 0, glow: HEART_GLOW * beat };
       }
       const center = toCanvas(DOTS[BODY_INDEX]);
       let dx = rest.x - center.x;
@@ -666,6 +718,7 @@ export const MOTION: Record<AnimationType, MotionModel> = {
         scale: 1,
         opacity: 1,
         colorMix: 0,
+        glow: HEART_GLOW * 0.5 * beat,
       };
     },
   },
@@ -674,47 +727,59 @@ export const MOTION: Record<AnimationType, MotionModel> = {
   // feet tucking mid-air, a scale pop at the apex, then a rebound landing. Starts
   // and ends planted so it reads as a one-shot even though the tuner loops it.
   celebration: {
-    animates: { pos: true, scale: true, opacity: false, color: false },
+    animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
     sample: (u, index) => {
       const rest = toCanvas(DOTS[index]);
-      const air = hop(u);
+      // Head and arms TRAIL the torso's jump (follow-through) via a small phase lag.
+      const lag = index === HEAD_INDEX ? CELEB_DRAG_HEAD : isArm(index) ? CELEB_DRAG_ARM : 0;
+      const air = hop(mod1(u - lag));
       let dx = 0;
       let dy = -CELEB_JUMP * air; // the whole figure rides the jump
       const scale = 1 + CELEB_POP * Math.max(air, 0);
+      // Squash & stretch: tall on launch, wide on the crouch and the landing.
+      const squash =
+        CELEB_STRETCH * hump(u, 0.12, 0.45) -
+        CELEB_SQUASH * (hump(u, 0, 0.16) + hump(u, 0.66, 0.82));
       if (isArm(index)) {
         const raise = hump(u, 0.1, 0.7);
-        dy += -CELEB_ARM_RAISE * raise;
-        dx += outwardX(rest) * CELEB_ARM_OUT * raise;
+        const a = arc(outwardX(rest) * CELEB_ARM_OUT, -CELEB_ARM_RAISE, raise, CELEB_ARM_BOW);
+        dx += a.dx;
+        dy += a.dy;
       } else if (index === 4 || index === 5) {
-        dy += -CELEB_LEG_TUCK * hump(u, 0.15, 0.65); // feet come up in the air
+        const tuck = hump(u, 0.15, 0.65);
+        const a = arc(-outwardX(rest) * 1.5, -CELEB_LEG_TUCK, tuck, CELEB_LEG_BOW); // feet up & slightly in
+        dx += a.dx;
+        dy += a.dy;
       }
-      return { pos: { x: rest.x + dx, y: rest.y + dy }, scale, opacity: 1, colorMix: 0 };
+      return { pos: { x: rest.x + dx, y: rest.y + dy }, scale, squash, opacity: 1, colorMix: 0, glow: CELEB_GLOW * Math.max(air, 0) };
     },
   },
 
   // "Let's go!" — a rhythmic fist pump. Arms drive up on each pump, the body
   // bounces and pops slightly in time; legs stay planted.
   encouragement: {
-    animates: { pos: true, scale: true, opacity: false, color: false },
+    animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
     sample: (u, index) => {
       const rest = toCanvas(DOTS[index]);
       const p = pump(u);
       let dy = 0;
       let scale = 1;
+      let squash = 0;
       if (isArm(index)) {
-        dy = -ENC_ARM_PUMP * p;
+        dy = -ENC_ARM_PUMP * p; // arms punch up
       } else if (index === BODY_INDEX || index === HEAD_INDEX) {
         dy = -ENC_BODY_BOUNCE * p;
         scale = 1 + ENC_POP * p;
+        squash = -ENC_SQUASH * p; // body compresses as it drives the pump
       }
-      return { pos: { x: rest.x, y: rest.y + dy }, scale, opacity: 1, colorMix: 0 };
+      return { pos: { x: rest.x, y: rest.y + dy }, scale, squash, opacity: 1, colorMix: 0, glow: ENC_GLOW * p };
     },
   },
 
   // Workout complete: arms rise into a held V while the figure lifts and brightens
   // toward the success color, then eases back. Loop-safe (rest at both ends).
   success: {
-    animates: { pos: true, scale: true, opacity: false, color: true },
+    animates: { pos: true, scale: true, opacity: false, color: true, glow: true },
     sample: (u, index, anim) => {
       const rest = toCanvas(DOTS[index]);
       const h = plateau(u);
@@ -723,13 +788,14 @@ export const MOTION: Record<AnimationType, MotionModel> = {
       let dy = 0;
       let scale = 1;
       if (isArm(index)) {
-        dy = -SUCCESS_ARM_RAISE * h;
-        dx = outwardX(rest) * SUCCESS_ARM_OUT * h;
+        const a = arc(outwardX(rest) * SUCCESS_ARM_OUT, -SUCCESS_ARM_RAISE, h, SUCCESS_ARM_BOW);
+        dx = a.dx;
+        dy = a.dy;
       } else if (index === BODY_INDEX || index === HEAD_INDEX) {
         dy = -SUCCESS_LIFT * h;
         scale = 1 + SUCCESS_POP * h;
       }
-      return { pos: { x: rest.x + dx, y: rest.y + dy }, scale, opacity: 1, colorMix };
+      return { pos: { x: rest.x + dx, y: rest.y + dy }, scale, opacity: 1, colorMix, glow: SUCCESS_GLOW * h };
     },
   },
 
