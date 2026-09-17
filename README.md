@@ -1,10 +1,10 @@
-# iQ Personalization
+# IQ Personalization
 
-A web tool for tuning the **glow and animation of the iQ mark** and exporting it as
+A web tool for tuning the **glow and animation of IQ** and exporting it as
 **Lottie JSON** for `lottie-android`. You dial in colors, glow, and motion in a live
 preview, then export a `.json` the Android app can play.
 
-The iQ mark is six dots. Read abstractly it's a logo; read as a character it's a little
+IQ is six dots. Read abstractly it's a logo; read as a character it's a little
 **workout buddy** — a head, two arms, a body, and legs — which is the lens the animation
 states are built through (it bobs, marches, jumps, flinches) rather than plain
 pulses and spins.
