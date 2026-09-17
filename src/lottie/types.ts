@@ -1,21 +1,41 @@
 // Minimal Lottie (bodymovin) schema types — only the subset this generator emits.
-// Static values only for now (every property uses { a: 0, k: ... }); when we add
-// pulsing, `k` becomes a keyframe array and `a` flips to 1.
+// A property is static as { a: 0, k: value }; when it animates, `a` flips to 1
+// and `k` becomes a keyframe array.
 
 export type StaticValue<T> = { a: 0; k: T };
+
+type Tangent = { x: number[]; y: number[] };
 
 /** One keyframe of an animated 2D value (position). */
 export type Vec2Keyframe = {
   t: number; // frame
   s: [number, number]; // value at this frame
-  i?: { x: number[]; y: number[] }; // in tangent (easing to next kf)
-  o?: { x: number[]; y: number[] }; // out tangent
+  i?: Tangent; // in tangent (easing to next kf)
+  o?: Tangent; // out tangent
 };
 
 export type AnimatedVec2 = { a: 1; k: Vec2Keyframe[] };
 
 /** A 2D property that may be static or keyframed. */
 export type Vec2Prop = StaticValue<[number, number]> | AnimatedVec2;
+
+/** One keyframe of an animated scalar (e.g. opacity 0..100). */
+export type ScalarKeyframe = { t: number; s: [number]; i?: Tangent; o?: Tangent };
+export type AnimatedScalar = { a: 1; k: ScalarKeyframe[] };
+/** A scalar property that may be static or keyframed. */
+export type ScalarProp = StaticValue<number> | AnimatedScalar;
+
+/** One keyframe of an animated rgba color (components 0..1). */
+export type ColorKeyframe = { t: number; s: [number, number, number, number]; i?: Tangent; o?: Tangent };
+export type AnimatedColor = { a: 1; k: ColorKeyframe[] };
+/** An rgba color property that may be static or keyframed. */
+export type ColorProp = StaticValue<[number, number, number, number]> | AnimatedColor;
+
+/** One keyframe of an animated gradient stop array (packed colors then alphas). */
+export type GradientArrayKeyframe = { t: number; s: number[]; i?: Tangent; o?: Tangent };
+export type AnimatedGradientArray = { a: 1; k: GradientArrayKeyframe[] };
+/** A gradient stop array that may be static or keyframed. */
+export type GradientArrayProp = StaticValue<number[]> | AnimatedGradientArray;
 
 /** Transform block shared by layers and shape groups. */
 export type Transform = {
@@ -36,8 +56,8 @@ export type EllipseShape = {
 
 export type SolidFill = {
   ty: "fl";
-  c: StaticValue<[number, number, number, number]>; // rgba 0..1
-  o: StaticValue<number>; // opacity 0..100
+  c: ColorProp; // rgba 0..1 (static or animated)
+  o: ScalarProp; // opacity 0..100 (static or animated)
   r: 1; // fill rule (nonzero)
   bm: 0;
 };
@@ -45,12 +65,12 @@ export type SolidFill = {
 export type GradientFill = {
   ty: "gf";
   t: 1 | 2; // 1 = linear, 2 = radial
-  o: StaticValue<number>; // opacity 0..100
+  o: ScalarProp; // opacity 0..100 (static or animated)
   s: StaticValue<[number, number]>; // gradient start point (center for radial)
   e: StaticValue<[number, number]>; // gradient end point (|e - s| = radius)
   g: {
     p: number; // number of COLOR stops
-    k: StaticValue<number[]>; // packed color stops then alpha stops
+    k: GradientArrayProp; // packed color stops then alpha stops (static or animated)
   };
   r: 1;
   bm: 0;

@@ -1,17 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { CANVAS, DOTS, DOT_R, toCanvas } from "../model/dots";
+import { CANVAS, DOTS, DOT_R } from "../model/dots";
 import { dotColor, haloRadius, haloStops } from "../model/geometry";
-import {
-  CENTER_INDEX,
-  centerScale,
-  clockwiseTarget,
-  collapseProgress,
-  collapsedPoint,
-  cycleDuration,
-  ringRotateScale,
-  ringScale,
-  rotateProgress,
-} from "../model/animation";
+import { mixHex } from "../model/color";
+import { MOTION, cycleDuration } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 
 type Props = { settings: GlowSettings; slowMo?: boolean };
@@ -47,34 +38,22 @@ function useCycleProgress(active: boolean, period: number): number {
  */
 export default function IconPreview({ settings, slowMo = false }: Props) {
   const r = haloRadius(settings);
-  const stops = haloStops(settings);
   const showGlow = settings.glowEnabled;
   const dotFill = dotColor(settings);
 
   const anim = settings.animation;
   const active = anim.type !== "none";
-  const isRotate = anim.type === "rotate-clockwise";
   // Preview-only: stretch the cycle so more frames are visible; export unaffected.
   const u = useCycleProgress(active, cycleDuration(anim) * (slowMo ? 2 : 1));
 
-  const center = toCanvas(DOTS[CENTER_INDEX]);
-  const positions = DOTS.map((p, i) => {
-    const rest = toCanvas(p);
-    if (!active || i === CENTER_INDEX) return rest;
-    if (isRotate) {
-      // Each outer dot glides straight to the next clockwise neighbor's position.
-      const target = toCanvas(DOTS[clockwiseTarget(i)]);
-      const rp = rotateProgress(u, anim);
-      return { x: rest.x + (target.x - rest.x) * rp, y: rest.y + (target.y - rest.y) * rp };
-    }
-    return collapsedPoint(rest, center, collapseProgress(u, anim));
-  });
-  // Center grows during collapse; outer dots get a scale pulse during rotation.
-  const scale = (i: number) => {
-    if (!active) return 1;
-    if (i === CENTER_INDEX) return centerScale(u, anim);
-    return isRotate ? ringRotateScale(u, anim) : ringScale(u, anim);
-  };
+  // ONE per-dot sample drives position, scale, opacity, and color — the same
+  // sampler the Lottie exporter bakes, so preview == export.
+  const samples = DOTS.map((_, i) => MOTION[anim.type].sample(u, i, anim));
+
+  // Per-dot color shift toward alertColor (0 = base color for that dot).
+  const dotFillOf = (mix: number) => (mix > 0 ? mixHex(dotFill, anim.alertColor, mix) : dotFill);
+  const stopsOf = (mix: number) =>
+    haloStops(settings, mix > 0 ? { color: mixHex(settings.glowColor, anim.alertColor, mix) } : undefined);
 
   return (
     <svg
@@ -86,16 +65,16 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
     >
       <defs>
         {showGlow &&
-          positions.map((c, i) => (
+          samples.map((sd, i) => (
             <radialGradient
               key={i}
               id={`halo-${i}`}
               gradientUnits="userSpaceOnUse"
-              cx={c.x}
-              cy={c.y}
-              r={r * scale(i)}
+              cx={sd.pos.x}
+              cy={sd.pos.y}
+              r={r * sd.scale}
             >
-              {stops.map((stop, j) => (
+              {stopsOf(sd.colorMix).map((stop, j) => (
                 <stop
                   key={j}
                   offset={stop.offset}
@@ -109,13 +88,27 @@ export default function IconPreview({ settings, slowMo = false }: Props) {
 
       {/* Halos (behind) */}
       {showGlow &&
-        positions.map((c, i) => (
-          <circle key={`halo-${i}`} cx={c.x} cy={c.y} r={r * scale(i)} fill={`url(#halo-${i})`} />
+        samples.map((sd, i) => (
+          <circle
+            key={`halo-${i}`}
+            cx={sd.pos.x}
+            cy={sd.pos.y}
+            r={r * sd.scale}
+            fill={`url(#halo-${i})`}
+            opacity={sd.opacity}
+          />
         ))}
 
       {/* Solid dots (front) — tinted toward the glow color when glow is on */}
-      {positions.map((c, i) => (
-        <circle key={`dot-${i}`} cx={c.x} cy={c.y} r={DOT_R * scale(i)} fill={dotFill} />
+      {samples.map((sd, i) => (
+        <circle
+          key={`dot-${i}`}
+          cx={sd.pos.x}
+          cy={sd.pos.y}
+          r={DOT_R * sd.scale}
+          fill={dotFillOf(sd.colorMix)}
+          fillOpacity={sd.opacity}
+        />
       ))}
     </svg>
   );

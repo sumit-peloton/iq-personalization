@@ -28,3 +28,8 @@ export function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
     b: a.b + (b.b - a.b) * t,
   };
 }
+
+/** Blend two hex colors, returning a hex string (0 = all a, 1 = all b). */
+export function mixHex(a: string, b: string, t: number): string {
+  return rgb01ToHex(mixRgb(hexToRgb01(a), hexToRgb01(b), t));
+}

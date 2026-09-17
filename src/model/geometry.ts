@@ -53,15 +53,18 @@ export type GradientStop = {
  * glowFalloff 0 = soft/diffuse (mid stays near full → gradual spread)
  * glowFalloff 1 = tight/sharp  (mid drops to 0      → bloom hugs the dot)
  */
-export function haloStops(s: GlowSettings): GradientStop[] {
+export function haloStops(s: GlowSettings, opts?: { color?: string }): GradientStop[] {
   const dotEdge = 1 / Math.max(s.glowRadius, 1.01);
   const outer = 1 - dotEdge;
   const mid = dotEdge + outer * 0.25;
   const midOpacity = s.glowIntensity * (1 - (s.glowFalloff ?? 0.7));
+  // Per-dot color override (Primitive B): animated color states pass a color
+  // shifted toward alertColor; default keeps the base glowColor.
+  const color = opts?.color ?? s.glowColor;
   return [
-    { offset: 0,       color: s.glowColor, opacity: s.glowIntensity },
-    { offset: dotEdge, color: s.glowColor, opacity: s.glowIntensity },
-    { offset: mid,     color: s.glowColor, opacity: midOpacity },
-    { offset: 1,       color: s.glowColor, opacity: 0 },
+    { offset: 0,       color, opacity: s.glowIntensity },
+    { offset: dotEdge, color, opacity: s.glowIntensity },
+    { offset: mid,     color, opacity: midOpacity },
+    { offset: 1,       color, opacity: 0 },
   ];
 }

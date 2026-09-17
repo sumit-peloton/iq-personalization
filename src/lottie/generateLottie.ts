@@ -7,31 +7,28 @@
 // glow color at the center to transparent at the edge. The web preview draws
 // the exact same radial gradient, so preview == export.
 //
-// MOTION: animated dot positions are BAKED — we sample the shared
-// collapseProgress() curve at frames across one cycle and emit a position
-// keyframe per sample. Baking (rather than translating springs into bezier
-// handles) guarantees the export matches the JS-driven preview exactly, no
-// matter how complex the easing/overshoot/rubberband is.
+// MOTION: every animated channel is BAKED. We sample the shared per-dot
+// MOTION[type].sample() across frames of one cycle and emit a keyframe per
+// sample for each channel (position, scale, opacity, color). Baking (rather
+// than translating springs into bezier handles) guarantees the export matches
+// the JS-driven preview exactly, no matter how complex the motion is. A channel
+// whose samples never change is collapsed to a static property to keep the file
+// lean.
 
 import { CANVAS, DOTS, DOT_R, toCanvas } from "../model/dots";
 import { dotColor, haloRadius, haloStops } from "../model/geometry";
-import { hexToRgb01 } from "../model/color";
-import {
-  CENTER_INDEX,
-  FPS,
-  centerScale,
-  clockwiseTarget,
-  collapseProgress,
-  collapsedPoint,
-  cycleFrames,
-  ringRotateScale,
-  ringScale,
-  rotateProgress,
-} from "../model/animation";
+import { hexToRgb01, mixHex } from "../model/color";
+import { FPS, MOTION, cycleFrames } from "../model/animation";
+import type { AnimationSettings, DotSample } from "../model/animation";
 import type { GlowSettings } from "../model/settings";
 import type {
-  GradientFill,
+  ColorKeyframe,
+  ColorProp,
+  GradientArrayKeyframe,
+  GradientArrayProp,
   LottieAnimation,
+  ScalarKeyframe,
+  ScalarProp,
   ShapeGroup,
   ShapeLayer,
   SolidFill,
@@ -54,6 +51,7 @@ function identityLayerTransform(): Transform {
 }
 
 const STATIC_SCALE: Vec2Prop = { a: 0, k: [100, 100] };
+const STATIC_OPACITY: ScalarProp = { a: 0, k: 100 };
 
 /**
  * Group transform placing a shape (built at local [0,0]) at a canvas position.
@@ -72,13 +70,19 @@ function groupTransform(pos: Vec2Prop, scale: Vec2Prop = STATIC_SCALE): Transfor
 }
 
 /** A solid dot: ellipse (diameter = 2*DOT_R) filled with the (tinted) dot color. */
-export function buildDotGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop): ShapeGroup {
+export function buildDotGroup(
+  pos: Vec2Prop,
+  s: GlowSettings,
+  scale?: Vec2Prop,
+  opacity: ScalarProp = STATIC_OPACITY,
+  color?: ColorProp,
+): ShapeGroup {
   const d = 2 * DOT_R;
   const { r: cr, g: cg, b: cb } = hexToRgb01(dotColor(s));
   const fill: SolidFill = {
     ty: "fl",
-    c: { a: 0, k: [cr, cg, cb, 1] },
-    o: { a: 0, k: 100 },
+    c: color ?? { a: 0, k: [cr, cg, cb, 1] },
+    o: opacity,
     r: 1,
     bm: 0,
   };
@@ -100,30 +104,29 @@ export function buildDotGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop):
  * COLOR stops come first, each as [offset, r, g, b] (4 numbers), repeated g.p
  * times. ALPHA stops are appended AFTER, each as [offset, alpha] (2 numbers).
  * g.p is the count of COLOR stops only. Driven by the same haloStops() used by
- * the SVG preview so preview == export.
+ * the SVG preview so preview == export. `gradient` (when supplied) may itself be
+ * animated for color-shifting states; the dot's opacity rides on gf.o.
  */
-export function buildHaloGroup(pos: Vec2Prop, s: GlowSettings, scale?: Vec2Prop): ShapeGroup {
+export function buildHaloGroup(
+  pos: Vec2Prop,
+  s: GlowSettings,
+  scale?: Vec2Prop,
+  opacity: ScalarProp = STATIC_OPACITY,
+  gradientArray?: { p: number; k: GradientArrayProp },
+): ShapeGroup {
   const r = haloRadius(s);
   const d = 2 * r;
-  const stops = haloStops(s);
-  const { r: cr, g: cg, b: cb } = hexToRgb01(s.glowColor);
+  const packed = gradientArray ?? staticGradientArray(s);
 
-  // Pack stops into Lottie's flat array format: all color entries first, then all alpha entries.
-  const colorFlat = stops.flatMap(st => [st.offset, cr, cg, cb]);
-  const alphaFlat = stops.flatMap(st => [st.offset, st.opacity]);
-
-  const gradient: GradientFill = {
-    ty: "gf",
-    t: 2, // radial
-    o: { a: 0, k: 100 },
-    s: { a: 0, k: [0, 0] }, // center (local coords)
-    e: { a: 0, k: [r, 0] }, // |e - s| = halo radius
-    g: {
-      p: stops.length,
-      k: { a: 0, k: [...colorFlat, ...alphaFlat] },
-    },
-    r: 1,
-    bm: 0,
+  const gradient = {
+    ty: "gf" as const,
+    t: 2 as const, // radial
+    o: opacity,
+    s: { a: 0 as const, k: [0, 0] as [number, number] }, // center (local coords)
+    e: { a: 0 as const, k: [r, 0] as [number, number] }, // |e - s| = halo radius
+    g: packed,
+    r: 1 as const,
+    bm: 0 as const,
   };
 
   return {
@@ -154,125 +157,186 @@ function buildLayer(nm: string, ind: number, shapes: ShapeGroup[], op: number): 
   };
 }
 
-/**
- * Position prop for one dot. Center dot (and any non-animated build) is static;
- * ring dots get baked keyframes sampled from collapseProgress across one cycle.
- */
-function dotPosition(index: number, s: GlowSettings): Vec2Prop {
-  const rest = toCanvas(DOTS[index]);
-  const anim = s.animation;
+// --- Baking infrastructure ---
+//
+// Sample the shared per-dot motion model across one cycle, then build a keyframe
+// stream per channel. A channel whose samples never vary collapses to a static
+// property (matching — and generalising — the old per-type static guards), so
+// the file stays lean and preview == export is guaranteed by construction.
 
-  if (anim.type === "none" || index === CENTER_INDEX) {
-    return { a: 0, k: [rest.x, rest.y] };
-  }
+const EPS = 1e-4;
+const near = (a: number, b: number) => Math.abs(a - b) < EPS;
 
-  // --- Rotate clockwise: each outer dot glides to the next clockwise position ---
-  if (anim.type === "rotate-clockwise") {
-    const target = toCanvas(DOTS[clockwiseTarget(index)]);
-    const total = cycleFrames(anim);
-    const step = Math.max(1, Math.round(total / 60));
-    const keys: Vec2Keyframe[] = [];
-    for (let f = 0; f <= total; f += step) {
-      if (f > total) break;
-      const rp = rotateProgress(f / total, anim);
-      keys.push({ t: f, s: [rest.x + (target.x - rest.x) * rp, rest.y + (target.y - rest.y) * rp], o: LINEAR_OUT, i: LINEAR_IN });
-    }
-    if (keys[keys.length - 1].t !== total) {
-      const rp = rotateProgress(1, anim);
-      keys.push({ t: total, s: [rest.x + (target.x - rest.x) * rp, rest.y + (target.y - rest.y) * rp], o: LINEAR_OUT, i: LINEAR_IN });
-    }
-    delete keys[keys.length - 1].o;
-    delete keys[keys.length - 1].i;
-    return { a: 1, k: keys };
-  }
+type DotCycle = { times: number[]; total: number; samples: DotSample[] };
 
-  // --- Collapse/expand ---
-  const center = toCanvas(DOTS[CENTER_INDEX]);
+/** Frame timestamps for one baked cycle (dense enough to capture springs). */
+function frameTimes(anim: AnimationSettings): { times: number[]; total: number } {
   const total = cycleFrames(anim);
-  // Cap keyframe count for a lean file; dense enough to capture the spring.
   const step = Math.max(1, Math.round(total / 60));
-
-  const keys: Vec2Keyframe[] = [];
+  const times: number[] = [];
   for (let f = 0; f <= total; f += step) {
     if (f > total) break;
-    const u = f / total;
-    const c = collapseProgress(u, anim);
-    const p = collapsedPoint(rest, center, c);
-    const kf: Vec2Keyframe = { t: f, s: [p.x, p.y], o: LINEAR_OUT, i: LINEAR_IN };
-    keys.push(kf);
+    times.push(f);
   }
   // Ensure the final frame lands exactly on `total` for a seamless loop.
-  if (keys[keys.length - 1].t !== total) {
-    const c = collapseProgress(1, anim);
-    const p = collapsedPoint(rest, center, c);
-    keys.push({ t: total, s: [p.x, p.y], o: LINEAR_OUT, i: LINEAR_IN });
-  }
-  // Last keyframe carries no outgoing tangent.
-  delete keys[keys.length - 1].o;
-  delete keys[keys.length - 1].i;
-
-  return { a: 1, k: keys };
+  if (times[times.length - 1] !== total) times.push(total);
+  return { times, total };
 }
 
-/**
- * Scale prop for one dot. The center dot grows (centerScale); the outer dots
- * shrink as they collapse (ringScale). Whichever applies is baked across one
- * cycle, mirroring the position baking so preview == export. Dots with no scale
- * motion stay a static 100%.
- */
-function dotScale(index: number, s: GlowSettings): Vec2Prop {
+/** Sample every channel of one dot across the cycle. */
+function sampleDot(index: number, s: GlowSettings): DotCycle {
   const anim = s.animation;
-  const isCenter = index === CENTER_INDEX;
-  const centerAnimated = isCenter && (
-    (anim.type === "rotate-clockwise" && anim.centerMatchRing && anim.ringShrink > 0) ||
-    (anim.type !== "rotate-clockwise" && anim.centerGrowEnabled && anim.centerGrow !== 1)
+  const { times, total } = frameTimes(anim);
+  const samples = times.map((t) => MOTION[anim.type].sample(t / total, index, anim));
+  return { times, total, samples };
+}
+
+function stripEnds<T extends { o?: unknown; i?: unknown }>(keys: T[]): T[] {
+  // The last keyframe carries no outgoing tangent (it IS the loop seam).
+  const last = keys[keys.length - 1];
+  delete last.o;
+  delete last.i;
+  return keys;
+}
+
+function vec2Prop(times: number[], vals: [number, number][]): Vec2Prop {
+  if (vals.every((v) => near(v[0], vals[0][0]) && near(v[1], vals[0][1]))) {
+    return { a: 0, k: vals[0] };
+  }
+  const keys: Vec2Keyframe[] = times.map((t, idx) => ({
+    t,
+    s: vals[idx],
+    o: LINEAR_OUT,
+    i: LINEAR_IN,
+  }));
+  return { a: 1, k: stripEnds(keys) };
+}
+
+function scalarProp(times: number[], vals: number[]): ScalarProp {
+  if (vals.every((v) => near(v, vals[0]))) return { a: 0, k: vals[0] };
+  const keys: ScalarKeyframe[] = times.map((t, idx) => ({
+    t,
+    s: [vals[idx]],
+    o: LINEAR_OUT,
+    i: LINEAR_IN,
+  }));
+  return { a: 1, k: stripEnds(keys) };
+}
+
+type Rgba = [number, number, number, number];
+
+function colorProp(times: number[], vals: Rgba[]): ColorProp {
+  if (vals.every((c) => c.every((x, idx) => near(x, vals[0][idx])))) {
+    return { a: 0, k: vals[0] };
+  }
+  const keys: ColorKeyframe[] = times.map((t, idx) => ({
+    t,
+    s: vals[idx],
+    o: LINEAR_OUT,
+    i: LINEAR_IN,
+  }));
+  return { a: 1, k: stripEnds(keys) };
+}
+
+function gradientArrayProp(times: number[], vals: number[][]): GradientArrayProp {
+  if (vals.every((a) => a.every((x, idx) => near(x, vals[0][idx])))) {
+    return { a: 0, k: vals[0] };
+  }
+  const keys: GradientArrayKeyframe[] = times.map((t, idx) => ({
+    t,
+    s: vals[idx],
+    o: LINEAR_OUT,
+    i: LINEAR_IN,
+  }));
+  return { a: 1, k: stripEnds(keys) };
+}
+
+// --- Per-dot channel props (each collapses to static when the model says the
+//     channel is inert OR when the samples turn out constant). ---
+
+function positionProp(index: number, s: GlowSettings, cyc: DotCycle): Vec2Prop {
+  const anim = s.animation;
+  const rest = toCanvas(DOTS[index]);
+  if (anim.type === "none" || !MOTION[anim.type].animates.pos) {
+    return { a: 0, k: [rest.x, rest.y] };
+  }
+  return vec2Prop(cyc.times, cyc.samples.map((sd) => [sd.pos.x, sd.pos.y]));
+}
+
+function scaleProp(_index: number, s: GlowSettings, cyc: DotCycle): Vec2Prop {
+  const anim = s.animation;
+  if (anim.type === "none" || !MOTION[anim.type].animates.scale) return STATIC_SCALE;
+  return vec2Prop(
+    cyc.times,
+    cyc.samples.map((sd) => {
+      const pct = sd.scale * 100;
+      return [pct, pct];
+    }),
   );
-  const ringRotateAnimated = !isCenter && anim.type === "rotate-clockwise" && anim.ringShrink > 0;
-  const ringAnimated = !isCenter && anim.ringShrink > 0 && anim.collapse > 0
-    && anim.type !== "rotate-clockwise";
+}
 
-  if (anim.type === "none" || (!centerAnimated && !ringAnimated && !ringRotateAnimated)) {
-    return { a: 0, k: [100, 100] };
-  }
+function opacityProp(_index: number, s: GlowSettings, cyc: DotCycle): ScalarProp {
+  const anim = s.animation;
+  if (anim.type === "none" || !MOTION[anim.type].animates.opacity) return STATIC_OPACITY;
+  return scalarProp(cyc.times, cyc.samples.map((sd) => sd.opacity * 100));
+}
 
-  const scaleAt = (u: number) =>
-    isCenter ? centerScale(u, anim)
-    : ringRotateAnimated ? ringRotateScale(u, anim)
-    : ringScale(u, anim);
-  const total = cycleFrames(anim);
-  const step = Math.max(1, Math.round(total / 60));
+function fillColorProp(_index: number, s: GlowSettings, cyc: DotCycle): ColorProp | undefined {
+  const anim = s.animation;
+  if (anim.type === "none" || !MOTION[anim.type].animates.color) return undefined;
+  const base = dotColor(s);
+  const vals: Rgba[] = cyc.samples.map((sd) => {
+    const hex = sd.colorMix > 0 ? mixHex(base, anim.alertColor, sd.colorMix) : base;
+    const { r, g, b } = hexToRgb01(hex);
+    return [r, g, b, 1];
+  });
+  return colorProp(cyc.times, vals);
+}
 
-  const keys: Vec2Keyframe[] = [];
-  for (let f = 0; f <= total; f += step) {
-    if (f > total) break;
-    const pct = scaleAt(f / total) * 100;
-    keys.push({ t: f, s: [pct, pct], o: LINEAR_OUT, i: LINEAR_IN });
-  }
-  if (keys[keys.length - 1].t !== total) {
-    const pct = scaleAt(1) * 100;
-    keys.push({ t: total, s: [pct, pct], o: LINEAR_OUT, i: LINEAR_IN });
-  }
-  delete keys[keys.length - 1].o;
-  delete keys[keys.length - 1].i;
+/** Pack one gradient-stop array at a given color-shift amount (colors shift; alphas are static). */
+function packGradient(s: GlowSettings, glowHex: string): { p: number; flat: number[] } {
+  const stops = haloStops(s);
+  const { r, g, b } = hexToRgb01(glowHex);
+  const colorFlat = stops.flatMap((st) => [st.offset, r, g, b]);
+  const alphaFlat = stops.flatMap((st) => [st.offset, st.opacity]);
+  return { p: stops.length, flat: [...colorFlat, ...alphaFlat] };
+}
 
-  return { a: 1, k: keys };
+function staticGradientArray(s: GlowSettings): { p: number; k: GradientArrayProp } {
+  const { p, flat } = packGradient(s, s.glowColor);
+  return { p, k: { a: 0, k: flat } };
+}
+
+function haloGradient(_index: number, s: GlowSettings, cyc: DotCycle): { p: number; k: GradientArrayProp } {
+  const anim = s.animation;
+  if (anim.type === "none" || !MOTION[anim.type].animates.color) return staticGradientArray(s);
+  const p = packGradient(s, s.glowColor).p;
+  const vals = cyc.samples.map((sd) => {
+    const glow = sd.colorMix > 0 ? mixHex(s.glowColor, anim.alertColor, sd.colorMix) : s.glowColor;
+    return packGradient(s, glow).flat;
+  });
+  return { p, k: gradientArrayProp(cyc.times, vals) };
 }
 
 export function generateLottie(s: GlowSettings): LottieAnimation {
   const animated = s.animation.type !== "none";
   const op = animated ? cycleFrames(s.animation) : FPS;
 
-  const positions = DOTS.map((_, i) => dotPosition(i, s));
-  const scales = DOTS.map((_, i) => dotScale(i, s));
+  const cycles = DOTS.map((_, i) => sampleDot(i, s));
+  const positions = cycles.map((cyc, i) => positionProp(i, s, cyc));
+  const scales = cycles.map((cyc, i) => scaleProp(i, s, cyc));
+  const opacities = cycles.map((cyc, i) => opacityProp(i, s, cyc));
+  const fills = cycles.map((cyc, i) => fillColorProp(i, s, cyc));
 
-  const dotShapes = DOTS.map((_, i) => buildDotGroup(positions[i], s, scales[i]));
+  const dotShapes = DOTS.map((_, i) => buildDotGroup(positions[i], s, scales[i], opacities[i], fills[i]));
 
   // Layers render top-first: dots layer (ind 1) sits above halos layer (ind 2).
   const layers = [buildLayer("dots", 1, dotShapes, op)];
 
   // When glow is disabled, omit the halo layer entirely — the export is just dots.
   if (s.glowEnabled) {
-    const haloShapes = DOTS.map((_, i) => buildHaloGroup(positions[i], s, scales[i]));
+    const gradients = cycles.map((cyc, i) => haloGradient(i, s, cyc));
+    const haloShapes = DOTS.map((_, i) => buildHaloGroup(positions[i], s, scales[i], opacities[i], gradients[i]));
     layers.push(buildLayer("halos", 2, haloShapes, op));
   }
 
