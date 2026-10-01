@@ -36,6 +36,7 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
   const isPulse = anim.type === "thinking-pulse";
   const hasDim = anim.type === "sleeping";
   const hasColorShift = anim.type === "alert" || anim.type === "success";
+  const isArrow = anim.type === "arrow-up" || anim.type === "arrow-down";
   // Types that use the breath/spring shaping (curve + overshoot + rubberband).
   // The character states carry their own baked motion, so they only expose Speed
   // (plus color for alert/success, dim for sleeping).
@@ -133,6 +134,26 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
             onChange={(speed) => patchAnim({ speed })}
             format={(v) => `${v.toFixed(2)}×`}
           />
+          {isArrow && (<>
+            <Slider
+              label="Grow"
+              value={anim.centerGrow}
+              min={CENTER_GROW_RANGE.min}
+              max={CENTER_GROW_RANGE.max}
+              step={CENTER_GROW_RANGE.step}
+              onChange={(centerGrow) => patchAnim({ centerGrow })}
+              format={(v) => `${v.toFixed(2)}×`}
+            />
+            <Slider
+              label="Swell"
+              value={anim.overshoot}
+              min={OVERSHOOT_RANGE.min}
+              max={OVERSHOOT_RANGE.max}
+              step={OVERSHOOT_RANGE.step}
+              onChange={(overshoot) => patchAnim({ overshoot })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </>)}
           {hasDim && (
             <Slider
               label="Dim"

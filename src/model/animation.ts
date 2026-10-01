@@ -5,6 +5,7 @@
 // exporter bakes it into keyframes — so preview == export.
 
 import { DOTS, toCanvas } from "./dots";
+import type { Point } from "./dots";
 
 export type AnimationType =
   | "none"
@@ -22,7 +23,10 @@ export type AnimationType =
   // Status
   | "rotate-clockwise"
   | "syncing"
-  | "alert";
+  | "alert"
+  // Directional (trend indicators)
+  | "arrow-up"
+  | "arrow-down";
 
 /**
  * The two control points of a cubic-bezier easing curve, as edited by the
@@ -98,6 +102,8 @@ export const ANIMATIONS: { value: AnimationType; label: string }[] = [
   { value: "rotate-clockwise", label: "Rotate Clockwise" },
   { value: "syncing", label: "Syncing" },
   { value: "alert", label: "Alert" },
+  { value: "arrow-up", label: "Arrow Up" },
+  { value: "arrow-down", label: "Arrow Down" },
 ];
 
 /** Index of the center dot in DOTS (the one the ring collapses onto). */
@@ -532,6 +538,20 @@ function arc(tx: number, ty: number, r: number, bow: number): { dx: number; dy: 
 }
 
 /**
+ * In-place "breathing" confined to [a, b]: `n` gentle out-and-back swells, each in
+ * [0, 1] so it only ever pushes in ONE direction (never past rest). A raised-cosine
+ * window (0 with 0 slope at both ends, and 0 outside [a, b]) multiplies the swells,
+ * so the breathing fades in and out and the whole thing is seam-clean.
+ */
+function breaths(u: number, a: number, b: number, n: number): number {
+  if (u <= a || u >= b) return 0;
+  const t = (u - a) / (b - a);
+  const window = Math.sin(Math.PI * t) ** 2; // 0 (slope 0) at t = 0 and t = 1
+  const swell = (1 - Math.cos(2 * Math.PI * n * t)) / 2; // n swells, each in [0, 1]
+  return window * swell;
+}
+
+/**
  * Shared clockwise-rotation sampler. Used by both "rotate-clockwise" and
  * "syncing" (syncing is just a slow rotate). Computes the center scale directly
  * so it doesn't depend on the animation type.
@@ -645,6 +665,71 @@ function idleStance(u: number, index: number): DotSample {
   }
 
   return { pos: { x: rest.x + dx, y: rest.y + dy }, scale, opacity: 1, colorMix: 0 };
+}
+
+// --- Directional arrows ---
+//
+// The 6 dots reconfigure from the mark into an arrow: a tip, two barbs, and a
+// vertical shaft (matching the Figma trend icons). Target layouts are in ORIGINAL
+// (unpadded) dot space, indexed by dot so each dot has a defined destination.
+//
+//   up:  tip(0) on top, barbs(1,2) flank shaft-top(3), shaft(4,5) descends
+//   down: shaft(0,3) descends, barbs(1,2) flank shaft(4), tip(5) at the bottom
+const ARROW_UP_TARGETS: readonly Point[] = [
+  { x: 30.24, y: 5 }, // 0 tip
+  { x: 12.0, y: 21 }, // 1 left barb
+  { x: 48.48, y: 21 }, // 2 right barb
+  { x: 30.24, y: 21 }, // 3 shaft top (between the barbs)
+  { x: 30.24, y: 39 }, // 4 shaft mid
+  { x: 30.24, y: 57 }, // 5 shaft bottom
+];
+const ARROW_DOWN_TARGETS: readonly Point[] = [
+  { x: 30.24, y: 5 }, // 0 shaft top
+  { x: 12.0, y: 41 }, // 1 left barb
+  { x: 48.48, y: 41 }, // 2 right barb
+  { x: 30.24, y: 23 }, // 3 shaft mid
+  { x: 30.24, y: 41 }, // 4 shaft (between the barbs)
+  { x: 30.24, y: 57 }, // 5 tip
+];
+
+const ARROW_RISE = 0.26; // assemble into the arrow over the first ~quarter
+const ARROW_FALL = 0.82; // relax back to the mark over the last ~18%
+const ARROW_BREATHS = 2; // gentle out-and-back swells while the arrow is held
+const ARROW_DRIFT = 5; // px the whole formed arrow drifts in its pointing direction
+const ARROW_GLOW = 0.5; // halo blooms while the arrow is held
+
+/**
+ * Assemble the mark into an arrow, hold + breathe in the pointing direction, then
+ * relax back. `plateau` ramps rest→arrow→rest (seam-clean), so the loop starts and
+ * ends on the mark like the other one-shots. While held, the whole arrow drifts
+ * `dirY` (−1 up, +1 down) and swells a touch, as if breathing toward the goal.
+ *
+ * The dots also grow into the arrow by `anim.centerGrow` (the "Grow" slider; 1 =
+ * no growth), held while the arrow is formed and eased back out with it. On top of
+ * that, `anim.overshoot` (the "Swell" slider) sets the breath swell amplitude.
+ */
+function arrowSample(
+  u: number,
+  index: number,
+  dirY: number,
+  targets: readonly Point[],
+  anim: AnimationSettings,
+): DotSample {
+  const rest = toCanvas(DOTS[index]);
+  const tgt = toCanvas(targets[index]);
+  const form = plateau(u, ARROW_RISE, ARROW_FALL);
+  const breath = breaths(u, ARROW_RISE, ARROW_FALL, ARROW_BREATHS);
+  const grow = anim.centerGrow - 1; // 0 = dots stay their size
+  return {
+    pos: {
+      x: rest.x + (tgt.x - rest.x) * form,
+      y: rest.y + (tgt.y - rest.y) * form + dirY * ARROW_DRIFT * breath,
+    },
+    scale: 1 + grow * form + anim.overshoot * breath,
+    opacity: 1,
+    colorMix: 0,
+    glow: ARROW_GLOW * form,
+  };
 }
 
 // --- The registry: one entry per AnimationType ---
@@ -843,5 +928,19 @@ export const MOTION: Record<AnimationType, MotionModel> = {
         colorMix: anim.colorShift * hump(u, 0, 0.5),
       };
     },
+  },
+
+  // Trend up: the mark assembles into an upward arrow, holds and breathes gently
+  // upward (as if drawing a breath toward the goal), then relaxes back to the mark.
+  "arrow-up": {
+    animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
+    sample: (u, index, anim) => arrowSample(u, index, -1, ARROW_UP_TARGETS, anim),
+  },
+
+  // Trend down: the mark assembles into a downward arrow, holds and breathes gently
+  // downward, then relaxes back to the mark.
+  "arrow-down": {
+    animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
+    sample: (u, index, anim) => arrowSample(u, index, 1, ARROW_DOWN_TARGETS, anim),
   },
 };
