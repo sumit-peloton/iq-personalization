@@ -17,6 +17,7 @@ export type AnimationType =
   | "celebration"
   | "encouragement"
   | "success"
+  | "checkmark"
   // Ambient
   | "idle-breathing"
   | "sleeping"
@@ -97,6 +98,7 @@ export const ANIMATIONS: { value: AnimationType; label: string }[] = [
   { value: "celebration", label: "Celebration" },
   { value: "encouragement", label: "Encouragement" },
   { value: "success", label: "Success" },
+  { value: "checkmark", label: "Checkmark" },
   { value: "idle-breathing", label: "Idle Breathing" },
   { value: "sleeping", label: "Sleeping" },
   { value: "rotate-clockwise", label: "Rotate Clockwise" },
@@ -552,6 +554,21 @@ function breaths(u: number, a: number, b: number, n: number): number {
 }
 
 /**
+ * Raised-cosine "ramp up → hold → ramp down" with independent timing for each
+ * leg, so different dots can start forming at staggered times (a draw-on feel)
+ * yet all release together. Rises 0→1 over [rs, rs+rd], holds 1, falls 1→0 over
+ * [fs, fs+fd]. Each ramp is a half-cosine, so value AND slope are 0 before `rs`
+ * and after `fs+fd` — seam-clean at u=0/u=1 as long as rs > 0 and fs+fd < 1.
+ */
+function riseHoldFall(u: number, rs: number, rd: number, fs: number, fd: number): number {
+  if (u <= rs) return 0;
+  if (u < rs + rd) return (1 - Math.cos((Math.PI * (u - rs)) / rd)) / 2; // 0 → 1
+  if (u <= fs) return 1;
+  if (u < fs + fd) return (1 + Math.cos((Math.PI * (u - fs)) / fd)) / 2; // 1 → 0
+  return 0;
+}
+
+/**
  * Shared clockwise-rotation sampler. Used by both "rotate-clockwise" and
  * "syncing" (syncing is just a slow rotate). Computes the center scale directly
  * so it doesn't depend on the animation type.
@@ -729,6 +746,66 @@ function arrowSample(
     opacity: 1,
     colorMix: 0,
     glow: ARROW_GLOW * form,
+  };
+}
+
+// --- Checkmark: draw a check ✓, hold, then relax back to the mark ---------
+//
+// The 6 dots trace a check: a short arm descending from the upper-left to a
+// bottom vertex, then a longer arm climbing to the upper-right (the Figma shape).
+// Targets are in ORIGINAL (unpadded) dot space, indexed by dot so each has a
+// destination chosen to keep its travel from rest short. CHECK_ORDER gives each
+// dot its position ALONG the stroke (0 = drawn first), which staggers the
+// forming so the check appears to draw itself tip → vertex → up the long arm.
+//
+//   stroke:  1(tip) → 4(vertex) → 3 → 5 → 0 → 2(top-right tip)
+// Neighbours along the stroke sit ~16 units apart (dot diameter is ~13.4), so
+// there's a clear gap between every pair.
+const CHECK_TARGETS: readonly Point[] = [
+  { x: 45, y: 14 }, // 0 → long arm, upper
+  { x: 4, y: 36 }, // 1 → short-arm tip (upper-left)
+  { x: 56, y: 2 }, // 2 → long-arm tip (top-right)
+  { x: 23, y: 38 }, // 3 → long arm, lower (just past the vertex)
+  { x: 12, y: 50 }, // 4 → vertex (bottom corner)
+  { x: 34, y: 26 }, // 5 → long arm, middle
+];
+const CHECK_ORDER: readonly number[] = [4, 0, 5, 2, 1, 3]; // stroke position per dot
+
+const CHECK_DRAW_START = 0.08; // first dot starts sliding in here
+const CHECK_STAGGER = 0.05; // each later dot in the stroke starts this much after
+const CHECK_RISE_DUR = 0.24; // long rise so neighbours are in motion together (flows)
+const CHECK_FALL_START = 0.8; // the whole check starts relaxing back here
+const CHECK_FALL_DUR = 0.16; // ...and is fully back by 0.96 (seam-clean, < 1)
+const CHECK_BOW = 0.22; // how much each dot's path curves (fraction of its travel)
+const CHECK_GLOW = 0.6; // each dot blooms as it lands, fading on release
+
+/**
+ * Draw the check, hold it still, then relax to the mark — just animate TO the
+ * shape and back, no breathing or drift once formed. Each dot sweeps from rest to
+ * its check position along a CURVED path (`arc`, bow ∝ its travel) on a staggered,
+ * overlapping `riseHoldFall` ramp (CHECK_ORDER sets the stagger) — so the mark
+ * flows into a ✓ rather than snapping dot-by-dot. It loops seam-clean (u=0 and u=1
+ * are both the resting mark): the bow rides sin(π·form) and `form` has zero value
+ * and slope at the seam, so value AND velocity match there.
+ *
+ * Dots grow by `anim.centerGrow` (the "Grow" slider) as they land.
+ */
+function checkSample(u: number, index: number, anim: AnimationSettings): DotSample {
+  const rest = toCanvas(DOTS[index]);
+  const tgt = toCanvas(CHECK_TARGETS[index]);
+  const k = CHECK_ORDER[index];
+  const rs = CHECK_DRAW_START + k * CHECK_STAGGER;
+  const form = riseHoldFall(u, rs, CHECK_RISE_DUR, CHECK_FALL_START, CHECK_FALL_DUR);
+  const grow = anim.centerGrow - 1; // 0 = dots stay their size
+  const tx = tgt.x - rest.x;
+  const ty = tgt.y - rest.y;
+  const swept = arc(tx, ty, form, CHECK_BOW * Math.hypot(tx, ty));
+  return {
+    pos: { x: rest.x + swept.dx, y: rest.y + swept.dy },
+    scale: 1 + grow * form,
+    opacity: 1,
+    colorMix: 0,
+    glow: CHECK_GLOW * form,
   };
 }
 
@@ -942,5 +1019,12 @@ export const MOTION: Record<AnimationType, MotionModel> = {
   "arrow-down": {
     animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
     sample: (u, index, anim) => arrowSample(u, index, 1, ARROW_DOWN_TARGETS, anim),
+  },
+
+  // Checkmark: the mark draws itself into a ✓ (dots land in stroke order), holds
+  // with a soft settle + glow bloom, then relaxes back to the mark.
+  checkmark: {
+    animates: { pos: true, scale: true, opacity: false, color: false, glow: true },
+    sample: (u, index, anim) => checkSample(u, index, anim),
   },
 };

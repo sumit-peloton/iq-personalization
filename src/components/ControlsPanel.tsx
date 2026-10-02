@@ -36,7 +36,10 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
   const isPulse = anim.type === "thinking-pulse";
   const hasDim = anim.type === "sleeping";
   const hasColorShift = anim.type === "alert" || anim.type === "success";
+  // Arrow + checkmark "assemble into a shape" (both expose Grow); only the arrows
+  // breathe while held, so Swell is arrow-only.
   const isArrow = anim.type === "arrow-up" || anim.type === "arrow-down";
+  const isFormed = isArrow || anim.type === "checkmark";
   // Types that use the breath/spring shaping (curve + overshoot + rubberband).
   // The character states carry their own baked motion, so they only expose Speed
   // (plus color for alert/success, dim for sleeping).
@@ -134,7 +137,7 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
             onChange={(speed) => patchAnim({ speed })}
             format={(v) => `${v.toFixed(2)}×`}
           />
-          {isArrow && (<>
+          {isFormed && (<>
             <Slider
               label="Grow"
               value={anim.centerGrow}
@@ -144,15 +147,17 @@ export default function ControlsPanel({ settings, onChange, onSelectAnimation }:
               onChange={(centerGrow) => patchAnim({ centerGrow })}
               format={(v) => `${v.toFixed(2)}×`}
             />
-            <Slider
-              label="Swell"
-              value={anim.overshoot}
-              min={OVERSHOOT_RANGE.min}
-              max={OVERSHOOT_RANGE.max}
-              step={OVERSHOOT_RANGE.step}
-              onChange={(overshoot) => patchAnim({ overshoot })}
-              format={(v) => `${Math.round(v * 100)}%`}
-            />
+            {isArrow && (
+              <Slider
+                label="Swell"
+                value={anim.overshoot}
+                min={OVERSHOOT_RANGE.min}
+                max={OVERSHOOT_RANGE.max}
+                step={OVERSHOOT_RANGE.step}
+                onChange={(overshoot) => patchAnim({ overshoot })}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
+            )}
           </>)}
           {hasDim && (
             <Slider
